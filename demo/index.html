@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=yes" />
+    <title>vcf-pdf-viewer demo</title>
+    <script src="../node_modules/@webcomponents/webcomponentsjs/webcomponents-bundle.js"></script>
+    <script type="module" src="pdf-viewer-demo.js"></script>
+    <custom-style>
+      <style is="custom-style" include="demo-pages-shared-styles">
+        .centered {
+          max-width: 1000px;
+        }
+      </style>
+    </custom-style>
+   
+  </head>
+ <body>
+    <main class="vertical-section-container centered hidden">
+
+      <h3>Showing a Single Page PDF Inline from File System</h3>
+      <demo-snippet id="pdf-viewer-basic-demos-single-page" when-defined="vcf-pdf-viewer">
+        <template preserve-content>
+          <vcf-pdf-viewer src="pdf-files/example-invoice.pdf"></vcf-pdf-viewer>  
+        </template>
+      </demo-snippet>
+
+      <h3>Showing a Multipage PDF Inline from File System</h3>
+      <demo-snippet id="pdf-viewer-basic-demos-multi-page" when-defined="vcf-pdf-viewer">
+        <template preserve-content>
+          <vcf-pdf-viewer src="pdf-files/bitcoin.pdf"></vcf-pdf-viewer>
+        </template>
+      </demo-snippet>
+  
+      <h3>No File Specified</h3>
+      <demo-snippet id="pdf-viewer-basic-demos-no-file" when-defined="vcf-pdf-viewer">
+        <template preserve-content>
+          <vcf-pdf-viewer></vcf-pdf-viewer>
+        </template>
+      </demo-snippet>
+  
+      <h3>Adjust the zoom level</h3>
+      <p>There are controls for the user to set a zoom level, but you can also defined programmatically what
+        the level should be, so that you have a good default. For example, in many cases you want a one-pager
+        to be fully visible on the screen. For that <code>zoom="page-fit"</code> is an excellent choice.</p>
+      <demo-snippet id="pdf-viewer-basic-demos-zoom" when-defined="vcf-pdf-viewer">
+        <template preserve-content>
+          <vcf-pdf-viewer src="pdf-files/example-invoice.pdf" zoom="page-fit"></vcf-pdf-viewer>
+        </template>
+      </demo-snippet>
+  
+      <h3>Run Code When PDF is Fully Loaded</h3>
+      <demo-snippet id="pdf-viewer-basic-demos-document-loaded" when-defined="vcf-pdf-viewer">
+        <template preserve-content>
+          <vcf-pdf-viewer src="pdf-files/example-invoice.pdf"></vcf-pdf-viewer>
+          <div id="status">Loading...</div>
+          <script>
+            // window.addDemoReadyListener('#pdf-viewer-basic-demos-document-loaded', function(document) {
+              var start = new Date().getTime();
+              const viewer = document.querySelector('vcf-pdf-viewer');
+              viewer.addEventListener('document-loaded', function(e) {
+                document.querySelector('#status').innerHTML = 'Document loaded in ' + (new Date().getTime() -
+                  start) + 'ms';
+              });
+            // });
+          </script>
+        </template>
+      </demo-snippet>   
+
+      <h3>Try to Load a File That Can't Be Found</h3>
+      <demo-snippet id="pdf-viewer-error-handling-non-existing-file" when-defined="vcf-pdf-viewer">
+        <template preserve-content>
+          <vcf-pdf-viewer src="pdf-files/non-existing-file.pdf"></vcf-pdf-viewer>
+        </template>
+      </demo-snippet>      
+      
+      <h3>Try to Load a File Which the Component Is Not Able to Read as a PDF</h3>
+      <demo-snippet id="pdf-viewer-error-handling-unreadable-file" when-defined="vcf-pdf-viewer">
+        <template preserve-content>
+          <vcf-pdf-viewer src="pdf-files/not-a-pdf.pdf"></vcf-pdf-viewer>
+        </template>
+      </demo-snippet>
+
+    </main>
+  </body>
+</html>

@@ -1,0 +1,66 @@
+<!doctype html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>vcf-pdf-viewer tests</title>
+  <script src="../../web-component-tester/browser.js"></script>
+  <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+  <link rel="import" href="../../test-fixture/test-fixture.html">
+  <link rel="import" href="../vcf-pdf-viewer.html">
+</head>
+
+<body>
+  <test-fixture id="no-file">
+    <template>
+      <vcf-pdf-viewer></vcf-pdf-viewer>
+    </template>
+  </test-fixture>
+
+  <test-fixture id="with-pdf-no-metadata-title">
+    <template>
+      <vcf-pdf-viewer src="pdf-files/example-invoice.pdf"></vcf-pdf-viewer>
+    </template>
+  </test-fixture>
+
+  <test-fixture id="with-pdf-with-metadata-title">
+    <template>
+      <vcf-pdf-viewer src="pdf-files/vaadin.pdf"></vcf-pdf-viewer>
+    </template>
+  </test-fixture>
+
+  <script>
+    describe('Title', () => {
+      'use strict';
+
+      let viewer;
+
+      beforeEach(() => {});
+
+      describe('test title rendering', () => {
+        it('should read PDF when there is no file', () => {
+          viewer = fixture('no-file');
+          const title = viewer.shadowRoot.querySelector('#title');
+          expect(title.innerHTML).to.be.equal('PDF');
+        });
+
+        it('should read title when file available and no metadata', () => {
+          viewer = fixture('with-pdf-no-metadata-title');
+          const title = viewer.shadowRoot.querySelector('#title');
+          expect(title.innerHTML).to.be.equal('example-invoice.pdf');
+        });
+
+        // FIXME: throws "offsetParent is not set -- cannot scroll"
+        it.skip('should read title when both file and metadata available', (done) => {
+          viewer = fixture('with-pdf-with-metadata-title');
+          viewer.addEventListener('document-loaded', function(e) {
+            const title = viewer.shadowRoot.querySelector('#title');
+            expect(title.innerHTML).to.be.equal('2018-04-05 Vaadin Insights.key - vaadin.pdf');
+            done();
+          });
+          const title = viewer.shadowRoot.querySelector('#title');
+          expect(title.innerHTML).to.be.equal('vaadin.pdf');
+        });
+      });
+    });
+  </script>
+</body>
