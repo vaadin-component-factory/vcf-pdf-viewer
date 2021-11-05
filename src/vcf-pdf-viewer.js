@@ -1,4 +1,4 @@
-import {PolymerElement, html} from '@polymer/polymer/polymer-element';
+import { PolymerElement, html } from '@polymer/polymer/polymer-element';
 import { ThemableMixin } from '@vaadin/vaadin-themable-mixin';
 import { ElementMixin } from '@vaadin/vaadin-element-mixin';
 import { IronResizableBehavior } from '@polymer/iron-resizable-behavior';
@@ -10,7 +10,11 @@ import '@vaadin/vaadin-item';
 import * as pdfjsLib from './pdf';
 import * as pdfjsViewer from '../web/pdf_viewer';
 import * as pdfUtils from '../web/ui_utils'
-// import * as pdfjsWorker from './pdf.worker';
+import * as pdfjsLinkService from '../web/pdf_link_service';
+import * as pdfjsThumbnailViewer from '../web/pdf_thumbnail_viewer';
+import * as pdfjsRenderingQueue from '../web/pdf_rendering_queue';
+import { NullL10n } from '../web/l10n_utils';
+// import * as pdfjsworker from './pdf.worker.js';
 // pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 /**
@@ -51,7 +55,8 @@ class PdfViewerElement extends
             [part~="toolbar"] #totalPages,
             [part~="toolbar"] #previousPage,
             [part~="toolbar"] #nextPage,
-            [part~="toolbar"] [part~="toolbar-zoom"] {
+            [part~="toolbar"] [part~="toolbar-zoom"],
+            [part~="toolbar"] [part~="toolbar-button-toogle-sidebar"] {
                 display: none;
             }
 
@@ -60,8 +65,23 @@ class PdfViewerElement extends
             [part~="toolbar"].ready #totalPages,
             [part~="toolbar"].ready #previousPage,
             [part~="toolbar"].ready #nextPage,
-            [part~="toolbar"].ready [part~="toolbar-zoom"] {
+            [part~="toolbar"].ready [part~="toolbar-zoom"],
+            [part~="toolbar"].ready [part~="toolbar-button-toogle-sidebar"] {
                 display: inherit;
+            }
+
+            [part~="outer-container"] {
+                width: 100%;
+                height: 100%;
+            }
+
+            [part~="main-container"] {
+                position: absolute;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                left: 0;
+                min-width: 320px;
             }
 
             [part~="viewer-container"] {
@@ -72,6 +92,36 @@ class PdfViewerElement extends
                 height: -moz-calc(100% - 45px); /* Firefox */
                 height: -webkit-calc(100% - 45px); /* Chrome, Safari */
                 height: calc(100% - 45px); /*all other browsers */
+            }
+
+            [part~="sidebar-container"] {
+                position: absolute;
+                width: 200px;
+                top: 45px;
+                bottom: 0;
+                visibility: hidden;
+                height: -moz-calc(100% - 45px); /* Firefox */
+                height: -webkit-calc(100% - 45px); /* Chrome, Safari */
+                height: calc(100% - 45px); /*all other browsers */
+                z-index: 100;
+            }
+
+            [part~="sidebar-content"] {
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                overflow: auto;
+                width: 100%;
+                background-color: rgba(0, 0, 0, 0.1);
+            }
+
+            [part~="thumbnail-view"] {
+                position: absolute;
+                width: calc(100% - 60px);
+                top: 0;
+                bottom: 0;
+                padding: 10px 30px 0;
+                overflow: auto;
             }
 
             [part~="toolbar"] {
@@ -147,39 +197,91 @@ class PdfViewerElement extends
             #currentPage {
                 align-self: baseline;
             }
+
+            #outerContainer.sidebarOpen #viewerContainer {
+                transition-property: left;
+                left: 200px;
+                width: -moz-calc(100% - 200px); /* Firefox */
+                width: -webkit-calc(100% - 200px); /* Chrome, Safari */
+                width: calc(100% - 200px); /*all other browsers */
+            }
+
+            #outerContainer.sidebarOpen #sidebarContainer {
+                visibility: visible;
+            }
+
+            .thumbnail {
+                margin: 0 10px 5px;
+            }
+
+            .thumbnailImage {
+                border: 1px solid rgba(0, 0, 0, 0);
+                box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+                opacity: 1.0;
+                z-index: 99;
+                background-color: rgba(255, 255, 255, 1);
+                background-clip: content-box;
+            }
+
+            .thumbnailSelectionRing {
+                border-radius: 2px;
+                padding: 7px;
+            }
+
+            .thumbnail.selected > .thumbnailSelectionRing {
+                background-color: rgba(0, 0, 0, 0.15);
+            }
+
+            #sidebarToggle {
+                margin-left: -10px;
+                margin-right: 15px;
+                border: 2px solid;
+                border-color: rgba(0, 0, 0, 0.5);
+            }
+
         </style>
 
-    <div>
-        <div id="toolbar" part="toolbar">
-            <span id="title" part="toolbar-text toolbar-title">{{__title}}</span>
-            <vaadin-select id="zoom" part="toolbar-zoom" value="{{zoom}}">
-            <template>
-                <vaadin-list-box>
-                <vaadin-item value='auto'>Automatic zoom</vaadin-item>
-                <vaadin-item value='page-fit'>Page fit</vaadin-item>
-                <vaadin-item value='0.5'>50%</vaadin-item>
-                <vaadin-item value='0.75'>75%</vaadin-item>
-                <vaadin-item value='1.0'>100%</vaadin-item>
-                <vaadin-item value='1.25'>125%</vaadin-item>
-                <vaadin-item value='1.5'>150%</vaadin-item>
-                <vaadin-item value='2.0'>200%</vaadin-item>
-                <vaadin-item value='3.0'>300%</vaadin-item>
-                <vaadin-item value='4.0'>400%</vaadin-item>
-                </vaadin-list-box>
-            </template>
-            </vaadin-select>
-            <div part="toolbar-pages">
-            <vaadin-text-field id="currentPage" part="toolbar-current-page" value="{{__currentPage}}" on-change="__pageChange"></vaadin-text-field>
-            <span id="pageSeparator" part="toolbar-text toolbar-page-separator">/</span>
-            <span id="totalPages" part="toolbar-text toolbar-total-pages">{{__totalPages}}</span>
-            <button id="previousPage" part="toolbar-button toolbar-button-previous-page" on-click="__previousPage"></button>
-            <button id="nextPage" part="toolbar-button toolbar-button-next-page" on-click="__nextPage"></button>
+    <div id="outerContainer" part="outer-container" >
+        <div id="sidebarContainer" part="sidebar-container">
+            <div id="sidebarContent" part="sidebar-content">
+                <div id="thumbnailView" part="thumbnail-view"></div>
+            </div>            
+        </div>   
+        <div id="mainContainer" part="main-container">
+            <div id="toolbar" part="toolbar">
+                <button id="sidebarToggle" part="toolbar-button toolbar-button-toogle-sidebar" on-click="__toogleSidebar"></button>
+                <span id="title" part="toolbar-text toolbar-title">{{__title}}</span>
+                <vaadin-select id="zoom" part="toolbar-zoom" value="{{zoom}}">
+                <template>
+                    <vaadin-list-box>
+                    <vaadin-item value='auto'>Automatic zoom</vaadin-item>
+                    <vaadin-item value='page-fit'>Page fit</vaadin-item>
+                    <vaadin-item value='0.5'>50%</vaadin-item>
+                    <vaadin-item value='0.75'>75%</vaadin-item>
+                    <vaadin-item value='1.0'>100%</vaadin-item>
+                    <vaadin-item value='1.25'>125%</vaadin-item>
+                    <vaadin-item value='1.5'>150%</vaadin-item>
+                    <vaadin-item value='2.0'>200%</vaadin-item>
+                    <vaadin-item value='3.0'>300%</vaadin-item>
+                    <vaadin-item value='4.0'>400%</vaadin-item>
+                    </vaadin-list-box>
+                </template>
+                </vaadin-select>
+                <div part="toolbar-pages">
+                <vaadin-text-field id="currentPage" part="toolbar-current-page" value="{{__currentPage}}" on-change="__pageChange"></vaadin-text-field>
+                <span id="pageSeparator" part="toolbar-text toolbar-page-separator">/</span>
+                <span id="totalPages" part="toolbar-text toolbar-total-pages">{{__totalPages}}</span>
+                <button id="previousPage" part="toolbar-button toolbar-button-previous-page" on-click="__previousPage"></button>
+                <button id="nextPage" part="toolbar-button toolbar-button-next-page" on-click="__nextPage"></button>
+                </div>
+            </div>
+            
+            <div id="viewerContainer" part="viewer-container" tabindex="0">
+                <div id="viewer" part="viewer"></div>
             </div>
         </div>
-        <div id="viewerContainer" part="viewer-container" tabindex="0">
-            <div id="viewer" part="viewer"></div>
-        </div>
-    </div>
+
+     </div>
     `;
     }
 
@@ -219,9 +321,20 @@ class PdfViewerElement extends
                 value: '//cdnjs.cloudflare.com/ajax/libs/pdf.js/2.5.207/pdf.worker.min.js'
             },
             /**
-             * The viewer, which takes care of rendering content into a DOM element
+             * The viewer, which takes care of rendering content into a DOM element.
              */
             __viewer: Object,
+
+            /**
+             * The viewer for thumbnails.
+             */
+            __thumbnailViewer: Object,
+
+            /**
+             * The link service.
+             */
+            __linkService: Object,
+
             /**
              * A represenentation of a document that has been read in.
              */
@@ -270,7 +383,7 @@ class PdfViewerElement extends
                 value: true
             },
         };
-}
+    }
 
     static get observers() {
         return [
@@ -303,13 +416,29 @@ class PdfViewerElement extends
             document.addEventListener('mouseup', mouseUpListener);
         });
 
+        // options
         const eventBus = new pdfUtils.EventBus();
+        this.__linkService = new pdfjsLinkService.PDFLinkService({
+            eventBus,
+        });
+        var pdfRenderingQueue = new pdfjsRenderingQueue.PDFRenderingQueue();
+        var l10n = NullL10n;
+
+        // pdfViewer
         this.__viewer = new pdfjsViewer.PDFViewer({
             container: this.$.viewerContainer,
             textLayerMode: 2,
-            viewer: this.$.viewer,            
-            eventBus: eventBus
+            viewer: this.$.viewer,
+            eventBus: eventBus,
+            linkService: this.__linkService,
+            renderingQueue: pdfRenderingQueue,
+            l10n: l10n
         });
+        
+        this.__linkService.setViewer(this.__viewer);
+        pdfRenderingQueue.setViewer(this.__viewer);
+
+        // listeners
         eventBus.on('pagesinit', () => {
             this.__viewer.currentScaleValue = this.zoom;
             this.__loading = false;
@@ -317,10 +446,24 @@ class PdfViewerElement extends
         eventBus.on('pagechanging', (event) => {
             this.__currentPage = event.pageNumber;
             this.__updatePageNumberStates();
+            if(this.__thumbnailViewer && this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled){
+                this.__thumbnailViewer.scrollThumbnailIntoView(this.__currentPage);
+            }
         });
 
         this.addEventListener('iron-resize', this.__recalculateSizes);
-        this.__recalculateSizes();
+        this.__recalculateSizes();       
+
+        // thumbnailViewer
+        this.__thumbnailViewer = new pdfjsThumbnailViewer.PDFThumbnailViewer({
+            container: this.$.thumbnailView,
+            eventBus: eventBus,
+            linkService: this.__linkService,
+            renderingQueue: pdfRenderingQueue,
+            l10n: l10n
+        })
+
+        pdfRenderingQueue.setThumbnailViewer(this.__thumbnailViewer);  
     }
 
     __recalculateSizes() {
@@ -362,6 +505,8 @@ class PdfViewerElement extends
         return this.__document.promise.then((pdfDocument) => {
             // Document loaded, specifying document for the viewer.
             this.__viewer.setDocument(pdfDocument);
+            this.__thumbnailViewer.setDocument(pdfDocument);
+            this.__linkService.setDocument(pdfDocument);
 
             this.$.toolbar.classList.add('ready');
             this.__totalPages = pdfDocument.numPages;
@@ -405,6 +550,8 @@ class PdfViewerElement extends
         if (this.__document) {
             this.__document = null;
             this.__viewer.setDocument(null);
+            this.__thumbnailViewer.setDocument(null);
+            this.__linkService.setDocument(null);
         }
         return promise;
     }
@@ -431,13 +578,13 @@ class PdfViewerElement extends
                 if (title !== 'Untitled') {
                     pdfTitle = title;
                 }
-        }
+            }
 
-        const info = data.info;
-        if (!pdfTitle && info && info['Title']) {
-            pdfTitle = info['Title'];
-        }
-        this.__pdfTitle = pdfTitle;
+            const info = data.info;
+            if (!pdfTitle && info && info['Title']) {
+                pdfTitle = info['Title'];
+            }
+            this.__pdfTitle = pdfTitle;
         });
     }
 
@@ -448,7 +595,7 @@ class PdfViewerElement extends
 
     __zoomChanged(value) {
         if (!this.__viewer || this.__loading) {
-        return;
+            return;
         }
         // This logs error 'TextLayerBuilder._bindEvents: `this.cancel()` should have
         // been called when the page was reset, or rendering cancelled.'
@@ -486,6 +633,45 @@ class PdfViewerElement extends
     __nextPage() {
         this.__viewer.currentPageNumber++;
     }
+
+    __toogleSidebar() {
+        if (this.$.outerContainer.classList.length == 0) { 
+            this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled = true;
+            this.__updateThumbnailViewer();
+            this.$.outerContainer.classList.add('sidebarOpen');
+        } else {
+            this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled = false;
+            this.$.outerContainer.classList.remove('sidebarOpen');
+        }
+    }
+
+    __updateThumbnailViewer() {
+        const pagesCount = this.__totalPages;
+        for (let i = 0; i < pagesCount; i++) {
+            const pageView = this.__viewer.getPageView(i);
+            if (pageView.renderingState === pdfjsRenderingQueue.RenderingStates.FINISHED) {
+                const thumbnailView = this.__thumbnailViewer.getThumbnail(i);
+                thumbnailView.setImage(pageView);
+            } else {
+                this.__thumbnailViewer.renderingQueue.renderHighestPriority();
+            }
+        }
+        var component = this;
+        for (let i = 0; i < this.__thumbnailViewer._thumbnails.length; i++) {
+            const thumbnailView = this.__thumbnailViewer.getThumbnail(i);
+            thumbnailView.anchor.onclick = function () {
+                const id = thumbnailView.id;
+                thumbnailView.linkService.goToPage(id);  
+                component.dispatchEvent(new CustomEvent('thumbnail-clicked', {
+                    detail: {
+                        source: component,
+                        pageNumber: id
+                    }
+                }));
+                return false;
+              };
+        }        
+    }
 }
 
 customElements.define(PdfViewerElement.is, PdfViewerElement);
@@ -496,4 +682,4 @@ customElements.define(PdfViewerElement.is, PdfViewerElement);
 window.Vaadin.PdfViewerElement = PdfViewerElement;
 
 
-    
+

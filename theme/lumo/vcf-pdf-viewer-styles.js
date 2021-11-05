@@ -78,6 +78,7 @@ registerStyles(
         margin: var(--lumo-space-xs);
         background: transparent;
         border: none;
+        padding-top: 0.3em;
       }
 
       [part~="toolbar-button"]:disabled {
@@ -110,6 +111,14 @@ registerStyles(
 
       [part~="toolbar-button-next-page"]::before {
         content: var(--lumo-icons-angle-down);
+      }
+
+      [part~="toolbar-button-toogle-sidebar"]::before {
+        content: var(--lumo-icons-chevron-right);
+      }
+
+      #outerContainer.sidebarOpen [part~="toolbar-button-toogle-sidebar"]::before {
+        content: var(--lumo-icons-chevron-left);
       }
 
       .page {
@@ -159,7 +168,7 @@ registerStyles(
         box-shadow: var(--lumo-box-shadow-m);
         padding: var(--lumo-space-xs);
       }
-        `,
+     `,
     { moduleId: 'lumo-vcf-pdf-viewer' }
   );
   

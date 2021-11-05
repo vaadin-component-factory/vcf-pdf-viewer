@@ -9,7 +9,7 @@
     <custom-style>
       <style is="custom-style" include="demo-pages-shared-styles">
         .centered {
-          max-width: 1000px;
+          max-width: 1500px;
         }
       </style>
     </custom-style>
@@ -49,20 +49,16 @@
         </template>
       </demo-snippet>
   
-      <h3>Run Code When PDF is Fully Loaded</h3>
-      <demo-snippet id="pdf-viewer-basic-demos-document-loaded" when-defined="vcf-pdf-viewer">
+      <h3>Listen to thumbnail click</h3>
+      <demo-snippet id="pdf-viewer-basic-demos-thumbnail-click" when-defined="vcf-pdf-viewer">
         <template preserve-content>
-          <vcf-pdf-viewer src="pdf-files/example-invoice.pdf"></vcf-pdf-viewer>
-          <div id="status">Loading...</div>
+          <vcf-pdf-viewer src="pdf-files/bitcoin.pdf"></vcf-pdf-viewer>
+          <div id="selectedPage"></div>
           <script>
-            // window.addDemoReadyListener('#pdf-viewer-basic-demos-document-loaded', function(document) {
-              var start = new Date().getTime();
-              const viewer = document.querySelector('vcf-pdf-viewer');
-              viewer.addEventListener('document-loaded', function(e) {
-                document.querySelector('#status').innerHTML = 'Document loaded in ' + (new Date().getTime() -
-                  start) + 'ms';
+             const pdfViewer = document.querySelector("#pdf-viewer-basic-demos-thumbnail-click").querySelector('vcf-pdf-viewer');
+             pdfViewer.addEventListener('thumbnail-clicked', function(e) {
+                document.querySelector('#selectedPage').innerHTML = 'Selected Page: ' + e.detail.pageNumber;
               });
-            // });
           </script>
         </template>
       </demo-snippet>   
