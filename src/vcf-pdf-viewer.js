@@ -14,8 +14,8 @@ import * as pdfjsLinkService from '../web/pdf_link_service';
 import * as pdfjsThumbnailViewer from '../web/pdf_thumbnail_viewer';
 import * as pdfjsRenderingQueue from '../web/pdf_rendering_queue';
 import { NullL10n } from '../web/l10n_utils';
-// import * as pdfjsworker from './pdf.worker.js';
-// pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+import * as pdfjsWorker from './core/worker';
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 /**
  * `<vcf-pdf-viewer>` is a Web Component for rendering PDF files without
@@ -307,20 +307,6 @@ class PdfViewerElement extends
             },
 
             /**
-             * The component needs pdf.worker.js sometimes, depending on the PDF being loaded. It is
-             * loaded lazily by telling the component where it is and it takes care of loading the file
-             *  if needed. By default, it is loaded from a CDN,
-             * '//cdnjs.cloudflare.com/ajax/libs/pdf.js/2.0.943/pdf.worker.min.js'. If you don't have
-             * internet access or don't want to rely on a server, you can download the file and deploy
-             * it within your app. When you have it available on runtime, update `worker` to point to
-             * the url for the file.
-             */
-            worker: {
-                type: String,
-                observer: '__workerChanged',
-                value: '//cdnjs.cloudflare.com/ajax/libs/pdf.js/2.5.207/pdf.worker.min.js'
-            },
-            /**
              * The viewer, which takes care of rendering content into a DOM element.
              */
             __viewer: Object,
@@ -526,12 +512,6 @@ class PdfViewerElement extends
 
     __srcChanged(newSrc) {
         this.__open(newSrc);
-    }
-
-    __workerChanged() {
-        if (pdfjsLib) {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = this.worker;
-        }
     }
 
     /**
