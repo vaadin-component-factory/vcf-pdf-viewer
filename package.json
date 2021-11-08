@@ -36,8 +36,7 @@
     "@vaadin/vaadin-form-layout": "^2.3.0",
     "@vaadin/vaadin-item": "^2.1.0",
     "@vaadin/vaadin-list-box": "^1.4.0",
-    "@vaadin/vaadin-select": "^2.4.0",
-    "worker-loader": "^3.0.7"
+    "@vaadin/vaadin-select": "^2.4.0"
   },
   "devDependencies": {
     "@polymer/iron-component-page": "^4.0.0",
@@ -50,9 +49,7 @@
     "@vaadin/vaadin-custom-field": "^1.0.0",
     "@vaadin/vaadin-dialog": "^2.2.1",
     "@vaadin/vaadin-icons": "^4.3.1",
-    "sugar": "^2.0.0",
-    "wct-browser-legacy": "^1.0.1",
-    "webpack": "^4.39.2"
+    "sugar": "^2.0.0"
   },
   "scripts": {
     "test": "wct",
