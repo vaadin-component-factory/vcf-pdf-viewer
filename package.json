@@ -3,6 +3,10 @@
   "version": "0.9.0",
   "description": "Polymer element providing pdf viewer",
   "main": "vcf-pdf-viewer.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vaadin-component-factory/vcf-pdf-viewer.git"
+  },
   "keywords": [
     "Vaadin",
     "vaadin-component-factory",
