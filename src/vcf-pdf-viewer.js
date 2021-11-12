@@ -7,14 +7,14 @@ import '@vaadin/vaadin-text-field';
 import '@vaadin/vaadin-select';
 import '@vaadin/vaadin-item';
 
-import * as pdfjsLib from './pdf';
-import * as pdfjsViewer from '../web/pdf_viewer';
-import * as pdfUtils from '../web/ui_utils'
-import * as pdfjsLinkService from '../web/pdf_link_service';
-import * as pdfjsThumbnailViewer from '../web/pdf_thumbnail_viewer';
-import * as pdfjsRenderingQueue from '../web/pdf_rendering_queue';
-import { NullL10n } from '../web/l10n_utils';
-import * as pdfjsWorker from './core/worker';
+import * as pdfjsLib from '../pdfjs/dist/pdf';
+import * as pdfjsViewer from '../pdfjs/dist/pdf_viewer';
+import * as pdfUtils from '../pdfjs/dist/ui_utils'
+import * as pdfjsLinkService from '../pdfjs/dist/pdf_link_service';
+import * as pdfjsThumbnailViewer from '../pdfjs/dist/pdf_thumbnail_viewer';
+import * as pdfjsRenderingQueue from '../pdfjs/dist/pdf_rendering_queue';
+import { NullL10n } from '../pdfjs/dist/l10n_utils';
+import * as pdfjsWorker from '../pdfjs/dist/worker';
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 /**
