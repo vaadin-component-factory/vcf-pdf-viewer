@@ -71,7 +71,6 @@
     "test": "wct",
     "lint": "eslint src/*.js",
     "start": "polymer serve -o",
-    "build:demo": "webpack",
     "publish": "node publish.js",
     "build": "rimraf dist && rollup -c pdfjs/rollup.config.js"
   }
