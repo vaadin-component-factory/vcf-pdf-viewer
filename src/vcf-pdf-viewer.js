@@ -364,9 +364,21 @@ class PdfViewerElement extends
              * Total amount of pages in an opened document
              */
             __totalPages: Number,
+            
+            /**
+             *  Loading state
+             */
             __loading: {
                 type: Boolean,
                 value: true
+            },
+
+            /**
+             * Whether sidebar is open after loading or not
+             */
+             __sidebarOpen: {
+                type: Boolean,
+                value: false
             },
         };
     }
@@ -423,11 +435,28 @@ class PdfViewerElement extends
         
         this.__linkService.setViewer(this.__viewer);
         pdfRenderingQueue.setViewer(this.__viewer);
+        
+        // thumbnailViewer
+        this.__thumbnailViewer = new pdfjsThumbnailViewer.PDFThumbnailViewer({
+            container: this.$.thumbnailView,
+            eventBus: eventBus,
+            linkService: this.__linkService,
+            renderingQueue: pdfRenderingQueue,
+            l10n: l10n
+        })
+
+        pdfRenderingQueue.setThumbnailViewer(this.__thumbnailViewer);  
 
         // listeners
         eventBus.on('pagesinit', () => {
             this.__viewer.currentScaleValue = this.zoom;
             this.__loading = false;
+            this.__updateThumbnailViewer();
+            if(this.__sidebarOpen){
+                this.__openSidebar();
+            } else {
+                this.__closeSidebar();
+            }      
         });
         eventBus.on('pagechanging', (event) => {
             this.__currentPage = event.pageNumber;
@@ -439,17 +468,6 @@ class PdfViewerElement extends
 
         this.addEventListener('iron-resize', this.__recalculateSizes);
         this.__recalculateSizes();       
-
-        // thumbnailViewer
-        this.__thumbnailViewer = new pdfjsThumbnailViewer.PDFThumbnailViewer({
-            container: this.$.thumbnailView,
-            eventBus: eventBus,
-            linkService: this.__linkService,
-            renderingQueue: pdfRenderingQueue,
-            l10n: l10n
-        })
-
-        pdfRenderingQueue.setThumbnailViewer(this.__thumbnailViewer);  
     }
 
     __recalculateSizes() {
@@ -616,9 +634,25 @@ class PdfViewerElement extends
 
     __toogleSidebar() {
         if (this.$.outerContainer.classList.length == 0) { 
+            this.__openSidebar();
+        } else {
+            this.__closeSidebar();
+        }
+    }
+
+    __openSidebar() {
+        if(!this.__thumbnailViewer ||this.__loading){
+            this.__sidebarOpen = true;
+        } else {
             this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled = true;
             this.__updateThumbnailViewer();
             this.$.outerContainer.classList.add('sidebarOpen');
+        }
+    }
+
+    __closeSidebar() {
+        if(!this.__thumbnailViewer || this.__loading){
+            this.__sidebarOpen = false;
         } else {
             this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled = false;
             this.$.outerContainer.classList.remove('sidebarOpen');
