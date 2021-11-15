@@ -268,7 +268,7 @@ class PdfViewerElement extends
                 </template>
                 </vaadin-select>
                 <div part="toolbar-pages">
-                <vaadin-text-field id="currentPage" part="toolbar-current-page" value="{{__currentPage}}" on-change="__pageChange"></vaadin-text-field>
+                <vaadin-text-field id="currentPage" part="toolbar-current-page" value="{{currentPage}}" on-change="__pageChange"></vaadin-text-field>
                 <span id="pageSeparator" part="toolbar-text toolbar-page-separator">/</span>
                 <span id="totalPages" part="toolbar-text toolbar-total-pages">{{__totalPages}}</span>
                 <button id="previousPage" part="toolbar-button toolbar-button-previous-page" on-click="__previousPage"></button>
@@ -356,7 +356,7 @@ class PdfViewerElement extends
             /**
              * The current page visible viewed right now
              */
-            __currentPage: {
+            currentPage: {
                 type: Number,
                 value: 1
             },
@@ -457,17 +457,23 @@ class PdfViewerElement extends
             } else {
                 this.__closeSidebar();
             }      
+            this.__viewer.currentPage = this.setCurrentPage();
         });
         eventBus.on('pagechanging', (event) => {
-            this.__currentPage = event.pageNumber;
+            this.__updateCurrentPageValue(event.pageNumber);
             this.__updatePageNumberStates();
             if(this.__thumbnailViewer && this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled){
-                this.__thumbnailViewer.scrollThumbnailIntoView(this.__currentPage);
+                this.__thumbnailViewer.scrollThumbnailIntoView(this.currentPage);
             }
         });
 
         this.addEventListener('iron-resize', this.__recalculateSizes);
         this.__recalculateSizes();       
+    }
+
+    __updateCurrentPageValue(pageNumber){
+        this.currentPage = pageNumber;
+        this.dispatchEvent(new CustomEvent('currentPage-changed'));
     }
 
     __recalculateSizes() {
@@ -514,7 +520,6 @@ class PdfViewerElement extends
 
             this.$.toolbar.classList.add('ready');
             this.__totalPages = pdfDocument.numPages;
-            this.__currentPage = 1;
             this.__updatePageNumberStates();
             this.__setPdfTitleFromMetadata(pdfDocument).then(() => {
                 this.dispatchEvent(new CustomEvent('document-loaded', {
@@ -587,8 +592,8 @@ class PdfViewerElement extends
     }
 
     __updatePageNumberStates() {
-        this.$.previousPage.disabled = (this.__currentPage === 1);
-        this.$.nextPage.disabled = (this.__currentPage === this.__totalPages);
+        this.$.previousPage.disabled = (this.currentPage === 1);
+        this.$.nextPage.disabled = (this.currentPage === this.__totalPages);
     }
 
     __zoomChanged(value) {
@@ -618,6 +623,14 @@ class PdfViewerElement extends
             page = this.__totalPages;
         }
         this.__viewer.currentPageNumber = page;
+    }
+
+    setCurrentPage(value) {
+        if (!this.__viewer || this.__loading) {
+            this.$.currentPage.value = value;
+        } else {
+            this.__pageChange();
+        }
     }
 
     _getPage() {
@@ -684,7 +697,10 @@ class PdfViewerElement extends
                 }));
                 return false;
               };
-        }        
+        } 
+        if(this.__thumbnailViewer && this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled){
+            this.__thumbnailViewer.scrollThumbnailIntoView(this.currentPage);
+        }   
     }
 }
 
