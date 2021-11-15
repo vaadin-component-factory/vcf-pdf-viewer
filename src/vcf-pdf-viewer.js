@@ -274,6 +274,7 @@ class PdfViewerElement extends
                 <button id="previousPage" part="toolbar-button toolbar-button-previous-page" on-click="__previousPage"></button>
                 <button id="nextPage" part="toolbar-button toolbar-button-next-page" on-click="__nextPage"></button>
                 </div>
+                <slot></slot>
             </div>
             
             <div id="viewerContainer" part="viewer-container" tabindex="0">
