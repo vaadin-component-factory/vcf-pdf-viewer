@@ -78,7 +78,7 @@ registerStyles(
         margin: var(--lumo-space-xs);
         background: transparent;
         border: none;
-        padding-top: 0.3em;
+        padding-top: 0.2em;
       }
 
       [part~="toolbar-button"]:disabled {
