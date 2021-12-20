@@ -1,11 +1,12 @@
 import { PolymerElement, html } from '@polymer/polymer/polymer-element';
 import { ThemableMixin } from '@vaadin/vaadin-themable-mixin';
-import { ElementMixin } from '@vaadin/vaadin-element-mixin';
+import { ElementMixin } from '@vaadin/component-base/src/element-mixin.js';
 import { IronResizableBehavior } from '@polymer/iron-resizable-behavior';
 import { mixinBehaviors } from '@polymer/polymer/lib/legacy/class.js';
-import '@vaadin/vaadin-text-field';
-import '@vaadin/vaadin-select';
-import '@vaadin/vaadin-item';
+import '@vaadin/polymer-legacy-adapter/template-renderer.js';
+import '@vaadin/text-field';
+import '@vaadin/select';
+import '@vaadin/item';
 
 import * as pdfjsLib from '../pdfjs/dist/pdf';
 import * as pdfjsViewer from '../pdfjs/dist/pdf_viewer';
@@ -254,25 +255,25 @@ class PdfViewerElement extends
                 <vaadin-select id="zoom" part="toolbar-zoom" value="{{zoom}}">
                 <template>
                     <vaadin-list-box>
-                    <vaadin-item value='auto'>Automatic zoom</vaadin-item>
-                    <vaadin-item value='page-fit'>Page fit</vaadin-item>
-                    <vaadin-item value='0.5'>50%</vaadin-item>
-                    <vaadin-item value='0.75'>75%</vaadin-item>
-                    <vaadin-item value='1.0'>100%</vaadin-item>
-                    <vaadin-item value='1.25'>125%</vaadin-item>
-                    <vaadin-item value='1.5'>150%</vaadin-item>
-                    <vaadin-item value='2.0'>200%</vaadin-item>
-                    <vaadin-item value='3.0'>300%</vaadin-item>
-                    <vaadin-item value='4.0'>400%</vaadin-item>
+                        <vaadin-item value='auto'>Automatic zoom</vaadin-item>
+                        <vaadin-item value='page-fit'>Page fit</vaadin-item>
+                        <vaadin-item value='0.5'>50%</vaadin-item>
+                        <vaadin-item value='0.75'>75%</vaadin-item>
+                        <vaadin-item value='1.0'>100%</vaadin-item>
+                        <vaadin-item value='1.25'>125%</vaadin-item>
+                        <vaadin-item value='1.5'>150%</vaadin-item>
+                        <vaadin-item value='2.0'>200%</vaadin-item>
+                        <vaadin-item value='3.0'>300%</vaadin-item>
+                        <vaadin-item value='4.0'>400%</vaadin-item>
                     </vaadin-list-box>
                 </template>
                 </vaadin-select>
                 <div part="toolbar-pages">
-                <vaadin-text-field id="currentPage" part="toolbar-current-page" value="{{currentPage}}" on-change="__pageChange"></vaadin-text-field>
-                <span id="pageSeparator" part="toolbar-text toolbar-page-separator">/</span>
-                <span id="totalPages" part="toolbar-text toolbar-total-pages">{{__totalPages}}</span>
-                <button id="previousPage" part="toolbar-button toolbar-button-previous-page" on-click="__previousPage"></button>
-                <button id="nextPage" part="toolbar-button toolbar-button-next-page" on-click="__nextPage"></button>
+                    <vaadin-text-field id="currentPage" part="toolbar-current-page" value="{{currentPage}}" on-change="__pageChange"></vaadin-text-field>
+                    <span id="pageSeparator" part="toolbar-text toolbar-page-separator">/</span>
+                    <span id="totalPages" part="toolbar-text toolbar-total-pages">{{__totalPages}}</span>
+                    <button id="previousPage" part="toolbar-button toolbar-button-previous-page" on-click="__previousPage"></button>
+                    <button id="nextPage" part="toolbar-button toolbar-button-next-page" on-click="__nextPage"></button>
                 </div>
                 <slot></slot>
             </div>

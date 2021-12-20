@@ -6,9 +6,9 @@ import '@vaadin/vaadin-lumo-styles/spacing.js';
 import '@vaadin/vaadin-lumo-styles/typography.js';
 import '@vaadin/vaadin-lumo-styles/font-icons.js';
 
-import '@vaadin/vaadin-select/theme/lumo/vaadin-select-styles.js';
-import '@vaadin/vaadin-list-box/theme/lumo/vaadin-list-box-styles.js';
-import '@vaadin/vaadin-item/theme/lumo/vaadin-item-styles.js';
+import '@vaadin/select/theme/lumo/vaadin-select-styles.js';
+import '@vaadin/list-box/theme/lumo/vaadin-list-box-styles.js';
+import '@vaadin/item/theme/lumo/vaadin-item-styles.js';
 
 registerStyles(
     'vcf-pdf-viewer',
