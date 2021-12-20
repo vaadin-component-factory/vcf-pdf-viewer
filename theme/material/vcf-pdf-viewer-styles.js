@@ -4,10 +4,10 @@ import { registerStyles, css } from '@vaadin/vaadin-themable-mixin/register-styl
 import '@vaadin/vaadin-material-styles/color.js';
 import '@vaadin/vaadin-material-styles/typography.js';
 
-import '@vaadin/vaadin-text-field/theme/material/vaadin-text-field-styles.js';
-import '@vaadin/vaadin-select/theme/material/vaadin-select-styles.js';
-import '@vaadin/vaadin-list-box/theme/material/vaadin-list-box-styles.js';
-import '@vaadin/vaadin-item/theme/material/vaadin-item-styles.js';
+import '@vaadin/text-field/theme/material/vaadin-text-field-styles.js';
+import '@vaadin/select/theme/material/vaadin-select-styles.js';
+import '@vaadin/list-box/theme/material/vaadin-list-box-styles.js';
+import '@vaadin/item/theme/material/vaadin-item-styles.js';
 
 registerStyles(
   'vcf-pdf-viewer',
