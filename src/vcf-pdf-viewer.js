@@ -627,11 +627,10 @@ class PdfViewerElement extends
     }
 
     setCurrentPage(value) {
-        if (!this.__viewer || this.__loading) {
+        if (value != undefined) {
             this.$.currentPage.value = value;
-        } else {
-            this.__pageChange();
         }
+        this.__pageChange();
     }
 
     _getPage() {
