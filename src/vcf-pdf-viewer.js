@@ -1,8 +1,6 @@
 import { PolymerElement, html } from '@polymer/polymer/polymer-element';
 import { ThemableMixin } from '@vaadin/vaadin-themable-mixin';
 import { ElementMixin } from '@vaadin/component-base/src/element-mixin.js';
-import { IronResizableBehavior } from '@polymer/iron-resizable-behavior';
-import { mixinBehaviors } from '@polymer/polymer/lib/legacy/class.js';
 import '@vaadin/polymer-legacy-adapter/template-renderer.js';
 import '@vaadin/text-field';
 import '@vaadin/select';
@@ -34,8 +32,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
  */
 class PdfViewerElement extends
     ElementMixin(
-        ThemableMixin(
-            mixinBehaviors([IronResizableBehavior], PolymerElement))) {
+        ThemableMixin(PolymerElement)) {
 
     static get template() {
         return html`
@@ -469,8 +466,15 @@ class PdfViewerElement extends
             }
         });
 
-        this.addEventListener('iron-resize', this.__recalculateSizes);
-        this.__recalculateSizes();       
+        this.__resizeObserver = new ResizeObserver(() => {
+            requestAnimationFrame(() => this.__recalculateSizes());
+        });
+        this.__resizeObserver.observe(this);
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        this.__recalculateSizes();        
     }
 
     __updateCurrentPageValue(pageNumber){
