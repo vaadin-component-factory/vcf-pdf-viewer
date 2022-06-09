@@ -517,7 +517,7 @@ class PdfViewerElement extends
             return;
         }
         this.__setFilename(src);
-        this.__document = pdfjsLib.getDocument(src);
+        this.__document = pdfjsLib.getDocument(new URL(src, document.baseURI).href);
         return this.__document.promise.then((pdfDocument) => {
             // Document loaded, specifying document for the viewer.
             this.__thumbnailViewer.setDocument(pdfDocument);
