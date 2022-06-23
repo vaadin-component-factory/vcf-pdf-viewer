@@ -379,6 +379,14 @@ class PdfViewerElement extends
                 type: Boolean,
                 value: false
             },
+
+            /**
+             * Flag to indicate if toolbar should only show filename as title
+             */
+            toolbarOnlyFilename: {
+                type: Boolean,
+                value: false
+            },
         };
     }
 
@@ -389,7 +397,9 @@ class PdfViewerElement extends
     }
 
     __setTitle(pdfTitle, filename) {
-        if (pdfTitle && filename) {
+        if(this.__viewer && this.toolbarOnlyFilename && filename) {
+            this.__title = filename;
+        } else if (pdfTitle && filename) {            
             this.__title = pdfTitle + ' - ' + filename;
         } else if (pdfTitle) {
             this.__title = pdfTitle;
@@ -398,7 +408,7 @@ class PdfViewerElement extends
         } else {
             this.__title = 'PDF';
         }
-    }
+   }
 
     ready() {
         super.ready();
