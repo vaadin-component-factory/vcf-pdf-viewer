@@ -252,8 +252,8 @@ class PdfViewerElement extends
                 <vaadin-select id="zoom" part="toolbar-zoom" value="{{zoom}}">
                 <template>
                     <vaadin-list-box>
-                        <vaadin-item value='auto'>Automatic zoom</vaadin-item>
-                        <vaadin-item value='page-fit'>Page fit</vaadin-item>
+                        <vaadin-item value='auto'>{{autoZoomOptionLabel}}</vaadin-item>
+                        <vaadin-item value='page-fit'>{{fitZoomOptionLabel}}</vaadin-item>
                         <vaadin-item value='0.5'>50%</vaadin-item>
                         <vaadin-item value='0.75'>75%</vaadin-item>
                         <vaadin-item value='1.0'>100%</vaadin-item>
@@ -386,6 +386,22 @@ class PdfViewerElement extends
             toolbarOnlyFilename: {
                 type: Boolean,
                 value: false
+            },
+
+            /**
+             * Property to define auto zoom label
+             */
+             autoZoomOptionLabel: {
+                type: String,
+                value: "Automatic zoom"
+            },
+
+            /**
+             * Property to define page fit zoom label
+             */
+            fitZoomOptionLabel: {
+                type: String,
+                value: "Page fit"
             },
         };
     }
