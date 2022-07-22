@@ -240,6 +240,11 @@ class PdfViewerElement extends
                 width: 40px;
             }
 
+            #nextPage, #previousPage {
+                width: 30px;
+                margin: 0;
+            }
+
         </style>
 
     <div id="outerContainer" part="outer-container" >
@@ -274,8 +279,12 @@ class PdfViewerElement extends
                     <vaadin-text-field id="currentPage" part="toolbar-current-page" value="{{currentPage}}" on-change="__pageChange"></vaadin-text-field>
                     <span id="pageSeparator" part="toolbar-text toolbar-page-separator">/</span>
                     <span id="totalPages" part="toolbar-text toolbar-total-pages">{{__totalPages}}</span>
-                    <button id="previousPage" part="toolbar-button toolbar-button-previous-page" on-click="__previousPage"></button>
-                    <button id="nextPage" part="toolbar-button toolbar-button-next-page" on-click="__nextPage"></button>
+                    <vaadin-button id="previousPage" part="toolbar-button toolbar-button-previous-page" theme="icon" on-click="__previousPage">
+                        <vaadin-icon part="previous-page-button-icon" slot="prefix"></vaadin-icon>
+                    </vaadin-button>
+                    <vaadin-button id="nextPage" part="toolbar-button toolbar-button-next-page" theme="icon" on-click="__nextPage">
+                        <vaadin-icon part="next-page-button-icon" slot="prefix"></vaadin-icon>
+                    </vaadin-button>
                 </div>
                 <slot></slot>
             </div>

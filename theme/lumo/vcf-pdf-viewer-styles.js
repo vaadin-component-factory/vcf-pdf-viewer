@@ -81,7 +81,7 @@ registerStyles(
         padding-top: 0.2em;
       }
 
-      [part~="toolbar-button"]:disabled {
+      [part~="toolbar-button"][disabled] {
         color: var(--lumo-contrast-40pct);
       }
 
@@ -90,7 +90,7 @@ registerStyles(
         color: var(--lumo-contrast-80pct);
       }
 
-      [part~="toolbar-button"]:disabled:hover {
+      [part~="toolbar-button"][disabled]:hover {
         background-color: transparent;
         color: var(--lumo-contrast-40pct);
       }
@@ -105,11 +105,11 @@ registerStyles(
         font-size: var(--lumo-icon-size-m);
       }
 
-      [part~="toolbar-button-previous-page"]::before {
+      [part~="previous-page-button-icon"]::before {
         content: var(--lumo-icons-angle-up);
       }
 
-      [part~="toolbar-button-next-page"]::before {
+      [part~="next-page-button-icon"]::before {
         content: var(--lumo-icons-angle-down);
       }
 

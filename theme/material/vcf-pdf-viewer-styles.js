@@ -75,7 +75,7 @@ registerStyles(
         opacity: 0.7;
       }
 
-      [part~="toolbar-button"]:disabled {
+      [part~="toolbar-button"][disabled] {
         opacity: 0.4;
       }
 
@@ -83,15 +83,15 @@ registerStyles(
         opacity: 1;
       }
 
-      [part~="toolbar-button"]:disabled:hover {
+      [part~="toolbar-button"][disabled]:hover {
         opacity: 0.4;
       }
 
-      [part~="toolbar-button-previous-page"]::before {
+      [part~="previous-page-button-icon"]::before {
         content: url('baseline-keyboard_arrow_up-24px.svg');
       }
 
-      [part~="toolbar-button-next-page"]::before {
+      [part~="next-page-button-icon"]::before {
         content: url('baseline-keyboard_arrow_down-24px.svg');
       }
 
