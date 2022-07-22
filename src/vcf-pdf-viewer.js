@@ -5,6 +5,8 @@ import '@vaadin/polymer-legacy-adapter/template-renderer.js';
 import '@vaadin/text-field';
 import '@vaadin/select';
 import '@vaadin/item';
+import '@vaadin/button';
+import '@vaadin/icon';
 
 import * as pdfjsLib from '../pdfjs/dist/pdf';
 import * as pdfjsViewer from '../pdfjs/dist/pdf_viewer';
@@ -235,6 +237,7 @@ class PdfViewerElement extends
                 margin-right: 15px;
                 border: 2px solid;
                 border-color: rgba(0, 0, 0, 0.5);
+                width: 40px;
             }
 
         </style>
@@ -247,7 +250,9 @@ class PdfViewerElement extends
         </div>   
         <div id="mainContainer" part="main-container">
             <div id="toolbar" part="toolbar">
-                <button id="sidebarToggle" part="toolbar-button toolbar-button-toogle-sidebar" on-click="__toogleSidebar"></button>
+                <vaadin-button id="sidebarToggle" part="toolbar-button toolbar-button-toogle-sidebar" theme="icon" on-click="__toogleSidebar">
+                    <vaadin-icon part="toggle-button-icon" slot="prefix"></vaadin-icon>
+                </vaadin-button>
                 <span id="title" part="toolbar-text toolbar-title">{{__title}}</span>
                 <vaadin-select id="zoom" part="toolbar-zoom" value="{{zoom}}">
                 <template>

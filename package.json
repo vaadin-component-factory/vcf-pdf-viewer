@@ -35,6 +35,8 @@
     "@vaadin/item": "^22.0.1",
     "@vaadin/list-box": "^22.0.1",
     "@vaadin/select": "^22.0.1",
+    "@vaadin/button": "^22.0.1",
+    "@vaadin/icon": "^22.0.1",
     "core-js": "^3.19.0",
     "dommatrix": "^0.0.6",
     "web-streams-polyfill": "^3.1.1"

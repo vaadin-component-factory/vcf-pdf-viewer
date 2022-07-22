@@ -113,11 +113,11 @@ registerStyles(
         content: var(--lumo-icons-angle-down);
       }
 
-      [part~="toolbar-button-toogle-sidebar"]::before {
+      [part~="toggle-button-icon"]::before {
         content: var(--lumo-icons-chevron-right);
       }
 
-      #outerContainer.sidebarOpen [part~="toolbar-button-toogle-sidebar"]::before {
+      #outerContainer.sidebarOpen [part~="toggle-button-icon"]::before {
         content: var(--lumo-icons-chevron-left);
       }
 
