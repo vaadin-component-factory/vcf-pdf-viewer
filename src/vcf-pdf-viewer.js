@@ -417,6 +417,14 @@ class PdfViewerElement extends
                 type: String,
                 value: "Page fit"
             },
+
+            /**
+             * Property to define a custom title for the viewer
+             */
+             customTitle: {
+                type: String,
+                value: ""
+            },
         };
     }
 
@@ -427,7 +435,9 @@ class PdfViewerElement extends
     }
 
     __setTitle(pdfTitle, filename) {
-        if(this.__viewer && this.toolbarOnlyFilename && filename) {
+        if(this.customTitle){
+            this.__title = this.customTitle;
+        } else if(this.__viewer && this.toolbarOnlyFilename && filename) {
             this.__title = filename;
         } else if (pdfTitle && filename) {            
             this.__title = pdfTitle + ' - ' + filename;
