@@ -245,6 +245,10 @@ class PdfViewerElement extends
                 margin: 0;
             }
 
+            [part~="toolbar"].ready [part~="toolbar-zoom"].hide-zoom {
+                display: none;
+            }
+
         </style>
 
     <div id="outerContainer" part="outer-container" >
@@ -434,12 +438,21 @@ class PdfViewerElement extends
                 type: Boolean,
                 value: true
             },
+
+            /** 
+             * Allows to hide the zoom dropdown. By default it's always shown.
+             */
+            hideZoom: {
+                type: Boolean,
+                value: false
+            },
         };
     }
 
     static get observers() {
         return [
-            '__setTitle(__pdfTitle, __filename)'
+            '__setTitle(__pdfTitle, __filename)',
+            '__updateZoomVisibility()'
         ];
     }
 
@@ -458,6 +471,14 @@ class PdfViewerElement extends
             this.__title = 'PDF';
         }
    }
+
+   __updateZoomVisibility() {
+        if(this.hideZoom) {
+            this.$.zoom.classList.add('hide-zoom');
+        } else {
+            this.$.zoom.classList.remove('hide-zoom');
+        }
+    }
 
     ready() {
         super.ready();
@@ -534,7 +555,7 @@ class PdfViewerElement extends
 
     connectedCallback() {
         super.connectedCallback();
-        this.__recalculateSizes();        
+        this.__recalculateSizes();      
     }
 
     __updateCurrentPageValue(pageNumber){
