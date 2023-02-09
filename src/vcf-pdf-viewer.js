@@ -425,6 +425,15 @@ class PdfViewerElement extends
                 type: String,
                 value: ""
             },
+
+            /**
+             * Renders interactive form elements in the annotation layer (html) if true,
+             * renders values of form elements directly onto the canvas if false
+             */
+            renderInteractiveForms: {
+                type: Boolean,
+                value: true
+            },
         };
     }
 
@@ -479,7 +488,8 @@ class PdfViewerElement extends
             eventBus: eventBus,
             linkService: this.__linkService,
             renderingQueue: pdfRenderingQueue,
-            l10n: l10n
+            l10n: l10n,
+            renderInteractiveForms: this.renderInteractiveForms
         });
         
         this.__linkService.setViewer(this.__viewer);
