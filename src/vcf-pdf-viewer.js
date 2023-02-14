@@ -259,7 +259,7 @@ class PdfViewerElement extends
         </div>   
         <div id="mainContainer" part="main-container">
             <div id="toolbar" part="toolbar">
-                <vaadin-button id="sidebarToggle" part="toolbar-button toolbar-button-toogle-sidebar" theme="icon" on-click="__toogleSidebar">
+                <vaadin-button id="sidebarToggle" part="toolbar-button toolbar-button-toogle-sidebar" theme="icon" on-click="__toogleSidebar" aria-label="Sidebar toggle">
                     <vaadin-icon part="toggle-button-icon" slot="prefix"></vaadin-icon>
                 </vaadin-button>
                 <span id="title" part="toolbar-text toolbar-title">{{__title}}</span>
@@ -283,10 +283,10 @@ class PdfViewerElement extends
                     <vaadin-text-field id="currentPage" part="toolbar-current-page" value="{{currentPage}}" on-change="__pageChange"></vaadin-text-field>
                     <span id="pageSeparator" part="toolbar-text toolbar-page-separator">/</span>
                     <span id="totalPages" part="toolbar-text toolbar-total-pages">{{__totalPages}}</span>
-                    <vaadin-button id="previousPage" part="toolbar-button toolbar-button-previous-page" theme="icon" on-click="__previousPage">
+                    <vaadin-button id="previousPage" part="toolbar-button toolbar-button-previous-page" theme="icon" on-click="__previousPage" aria-label="Previous page">
                         <vaadin-icon part="previous-page-button-icon" slot="prefix"></vaadin-icon>
                     </vaadin-button>
-                    <vaadin-button id="nextPage" part="toolbar-button toolbar-button-next-page" theme="icon" on-click="__nextPage">
+                    <vaadin-button id="nextPage" part="toolbar-button toolbar-button-next-page" theme="icon" on-click="__nextPage" aria-label="Next page">
                         <vaadin-icon part="next-page-button-icon" slot="prefix"></vaadin-icon>
                     </vaadin-button>
                 </div>
@@ -381,7 +381,7 @@ class PdfViewerElement extends
              * Total amount of pages in an opened document
              */
             __totalPages: Number,
-            
+
             /**
              *  Loading state
              */
@@ -439,7 +439,7 @@ class PdfViewerElement extends
                 value: true
             },
 
-            /** 
+            /**
              * Allows to hide the zoom dropdown. By default it's always shown.
              */
             hideZoom: {
@@ -461,7 +461,7 @@ class PdfViewerElement extends
             this.__title = this.customTitle;
         } else if(this.__viewer && this.toolbarOnlyFilename && filename) {
             this.__title = filename;
-        } else if (pdfTitle && filename) {            
+        } else if (pdfTitle && filename) {
             this.__title = pdfTitle + ' - ' + filename;
         } else if (pdfTitle) {
             this.__title = pdfTitle;
@@ -512,10 +512,10 @@ class PdfViewerElement extends
             l10n: l10n,
             renderInteractiveForms: this.renderInteractiveForms
         });
-        
+
         this.__linkService.setViewer(this.__viewer);
         pdfRenderingQueue.setViewer(this.__viewer);
-        
+
         // thumbnailViewer
         this.__thumbnailViewer = new pdfjsThumbnailViewer.PDFThumbnailViewer({
             container: this.$.thumbnailView,
@@ -525,7 +525,7 @@ class PdfViewerElement extends
             l10n: l10n
         })
 
-        pdfRenderingQueue.setThumbnailViewer(this.__thumbnailViewer);  
+        pdfRenderingQueue.setThumbnailViewer(this.__thumbnailViewer);
 
         // listeners
         eventBus.on('pagesinit', () => {
@@ -536,7 +536,7 @@ class PdfViewerElement extends
                 this.__openSidebar();
             } else {
                 this.__closeSidebar();
-            }      
+            }
             this.__viewer.currentPage = this.setCurrentPage();
         });
         eventBus.on('pagechanging', (event) => {
@@ -555,7 +555,7 @@ class PdfViewerElement extends
 
     connectedCallback() {
         super.connectedCallback();
-        this.__recalculateSizes();      
+        this.__recalculateSizes();
     }
 
     __updateCurrentPageValue(pageNumber){
@@ -732,7 +732,7 @@ class PdfViewerElement extends
     }
 
     __toogleSidebar() {
-        if (this.$.outerContainer.classList.length == 0) { 
+        if (this.$.outerContainer.classList.length == 0) {
             this.__openSidebar();
         } else {
             this.__closeSidebar();
@@ -774,7 +774,7 @@ class PdfViewerElement extends
             const thumbnailView = this.__thumbnailViewer.getThumbnail(i);
             thumbnailView.anchor.onclick = function () {
                 const id = thumbnailView.id;
-                thumbnailView.linkService.goToPage(id);  
+                thumbnailView.linkService.goToPage(id);
                 component.dispatchEvent(new CustomEvent('thumbnail-clicked', {
                     detail: {
                         source: component,
@@ -783,10 +783,10 @@ class PdfViewerElement extends
                 }));
                 return false;
               };
-        } 
+        }
         if(this.__thumbnailViewer && this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled){
             this.__thumbnailViewer.scrollThumbnailIntoView(this.currentPage);
-        }   
+        }
     }
 }
 
