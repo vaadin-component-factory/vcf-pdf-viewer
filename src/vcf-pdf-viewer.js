@@ -307,7 +307,7 @@ class PdfViewerElement extends
     }
 
     static get version() {
-        return '1.3.0';
+        return '1.4.0';
     }
 
     static get properties() {
