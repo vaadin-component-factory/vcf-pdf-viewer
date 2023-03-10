@@ -16,7 +16,7 @@ registerStyles(
         :host {
         background-color: var(--lumo-base-color);
         border: 1px solid var(--lumo-contrast-10pct);
-        border-radius: var(--lumo-border-radius);
+        border-radius: var(--lumo-border-radius, var(--lumo-border-radius-s));
         font-family: var(--lumo-font-family);
         position: relative;
       }
@@ -72,7 +72,7 @@ registerStyles(
 
       [part~="toolbar-button"] {
         height: var(--lumo-size-m);
-        border-radius: var(--lumo-border-radius);
+        border-radius: var(--lumo-border-radius, var(--lumo-border-radius-s));
         color: var(--lumo-contrast-80pct);
         transition: background-color 100ms, color 100ms;
         margin: var(--lumo-space-xs);
