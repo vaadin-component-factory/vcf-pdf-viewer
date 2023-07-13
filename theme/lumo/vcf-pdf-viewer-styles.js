@@ -167,6 +167,7 @@ registerStyles(
         background-color: white;
         box-shadow: var(--lumo-box-shadow-m);
         padding: var(--lumo-space-xs);
+        z-index: 99;
       }
      `,
     { moduleId: 'lumo-vcf-pdf-viewer' }
