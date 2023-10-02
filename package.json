@@ -1,6 +1,6 @@
 {
   "name": "@vaadin-component-factory/vcf-pdf-viewer",
-  "version": "1.4.1",
+  "version": "2.0.0",
   "description": "Polymer element providing pdf viewer",
   "main": "vcf-pdf-viewer.js",
   "repository": {
