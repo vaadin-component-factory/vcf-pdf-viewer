@@ -1,6 +1,6 @@
 {
   "name": "@vaadin-component-factory/vcf-pdf-viewer",
-  "version": "1.4.1",
+  "version": "2.0.0",
   "description": "Polymer element providing pdf viewer",
   "main": "vcf-pdf-viewer.js",
   "repository": {
@@ -24,19 +24,17 @@
     "pdfjs/dist"
   ],
   "dependencies": {
-    "@polymer/iron-resizable-behavior": "^3.0.0",
-    "@polymer/polymer": "^3.0.0",
-    "@vaadin/component-base": "^22.0.1",
-    "@vaadin/vaadin-lumo-styles": "^22.0.1",
-    "@vaadin/vaadin-material-styles": "^22.0.1",
-    "@vaadin/vaadin-overlay": "^22.0.1",
-    "@vaadin/text-field": "^22.0.1",
-    "@vaadin/vaadin-themable-mixin": "^22.0.1",
-    "@vaadin/item": "^22.0.1",
-    "@vaadin/list-box": "^22.0.1",
-    "@vaadin/select": "^22.0.1",
-    "@vaadin/button": "^22.0.1",
-    "@vaadin/icon": "^22.0.1",
+    "@polymer/polymer": "^3.4.1",
+    "@vaadin/component-base": "^24.1.1",
+    "@vaadin/vaadin-lumo-styles": "^24.1.1",
+    "@vaadin/vaadin-material-styles": "^24.1.1",
+    "@vaadin/text-field": "^24.1.1",
+    "@vaadin/vaadin-themable-mixin": "^24.1.1",
+    "@vaadin/item": "^24.1.1",
+    "@vaadin/list-box": "^24.1.1",
+    "@vaadin/select": "^24.1.1",
+    "@vaadin/button": "^24.1.1",
+    "@vaadin/icon": "^24.1.1",
     "core-js": "^3.19.0",
     "dommatrix": "^0.0.6",
     "web-streams-polyfill": "^3.1.1"
