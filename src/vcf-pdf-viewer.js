@@ -264,20 +264,6 @@ class PdfViewerElement extends
                 </vaadin-button>
                 <span id="title" part="toolbar-text toolbar-title">{{__title}}</span>
                 <vaadin-select id="zoom" part="toolbar-zoom" value="{{zoom}}">
-                <template>
-                    <vaadin-list-box>
-                        <vaadin-item value='auto'>{{autoZoomOptionLabel}}</vaadin-item>
-                        <vaadin-item value='page-fit'>{{fitZoomOptionLabel}}</vaadin-item>
-                        <vaadin-item value='0.5'>50%</vaadin-item>
-                        <vaadin-item value='0.75'>75%</vaadin-item>
-                        <vaadin-item value='1.0'>100%</vaadin-item>
-                        <vaadin-item value='1.25'>125%</vaadin-item>
-                        <vaadin-item value='1.5'>150%</vaadin-item>
-                        <vaadin-item value='2.0'>200%</vaadin-item>
-                        <vaadin-item value='3.0'>300%</vaadin-item>
-                        <vaadin-item value='4.0'>400%</vaadin-item>
-                    </vaadin-list-box>
-                </template>
                 </vaadin-select>
                 <div part="toolbar-pages">
                     <vaadin-text-field id="currentPage" part="toolbar-current-page" value="{{currentPage}}" on-change="__pageChange"></vaadin-text-field>
@@ -374,8 +360,8 @@ class PdfViewerElement extends
              * The current page visible viewed right now
              */
             currentPage: {
-                type: Number,
-                value: 1
+                type: String,
+                value: "1"
             },
             /**
              * Total amount of pages in an opened document
@@ -550,6 +536,19 @@ class PdfViewerElement extends
         this.__resizeObserver = new ResizeObserver(() => {
             requestAnimationFrame(() => this.__recalculateSizes());
         });
+        this.$.zoom.items = [
+            { label: this.autoZoomOptionLabel, value:'auto' },
+            { label: this.fitZoomOptionLabel, value:'page-fit' },
+            { label: '50%', value:'0.5' },
+            { label: '75%', value:'0.75' },
+            { label: '100%', value:'1.0' },
+            { label: '125%', value:'1.25' },
+            { label: '150%', value:'1.5' },
+            { label: '200%', value:'2.0' },
+            { label: '300%', value:'3.0' },
+            { label: '400%', value:'4.0' }
+        ];
+
         this.__resizeObserver.observe(this);
     }
 
@@ -559,7 +558,7 @@ class PdfViewerElement extends
     }
 
     __updateCurrentPageValue(pageNumber){
-        this.currentPage = pageNumber;
+        this.currentPage = "" + pageNumber;
         this.dispatchEvent(new CustomEvent('currentPage-changed'));
     }
 
@@ -679,8 +678,8 @@ class PdfViewerElement extends
     }
 
     __updatePageNumberStates() {
-        this.$.previousPage.disabled = (this.currentPage === 1);
-        this.$.nextPage.disabled = (this.currentPage === this.__totalPages);
+        this.$.previousPage.disabled = (this.currentPage === "1");
+        this.$.nextPage.disabled = (this.currentPage === "" + this.__totalPages);
     }
 
     __zoomChanged(value) {
@@ -698,23 +697,23 @@ class PdfViewerElement extends
     }
 
     __pageChange(event) {
-        let page = parseInt(this.$.currentPage.value, 10);
-        if (isNaN(page)) {
-            page = this.__viewer.currentPageNumber;
-            this.$.currentPage.value = page;
+        let pageNumber = parseInt(this.$.currentPage.value, 10);
+        if (isNaN(pageNumber)) {
+            pageNumber = this.__viewer.currentPageNumber;
+            this.$.currentPage.value = "" + pageNumber;
         }
-        if (page < 1) {
-            page = 1;
+        if (pageNumber < 1) {
+            pageNumber = 1;
         }
-        if (page > this.__totalPages) {
-            page = this.__totalPages;
+        if (pageNumber > this.__totalPages) {
+            pageNumber = this.__totalPages;
         }
-        this.__viewer.currentPageNumber = page;
+        this.__viewer.currentPageNumber = pageNumber;
     }
 
     setCurrentPage(value) {
         if (value != undefined) {
-            this.$.currentPage.value = value;
+            this.$.currentPage.value = "" + value;
         }
         this.__pageChange();
     }
