@@ -263,7 +263,7 @@ class PdfViewerElement extends
                     <vaadin-icon part="toggle-button-icon" slot="prefix"></vaadin-icon>
                 </vaadin-button>
                 <span id="title" part="toolbar-text toolbar-title">{{__title}}</span>
-                <vaadin-select id="zoom" part="toolbar-zoom" value="{{zoom}}">
+                <vaadin-select id="zoom" part="toolbar-zoom" value="{{zoom}}" items="[[__zoomItems]]">
                 </vaadin-select>
                 <div part="toolbar-pages">
                     <vaadin-text-field id="currentPage" part="toolbar-current-page" value="{{currentPage}}" on-change="__pageChange"></vaadin-text-field>
@@ -432,7 +432,25 @@ class PdfViewerElement extends
                 type: Boolean,
                 value: false
             },
+            __zoomItems: {
+                computed: '__computeZoomItems(autoZoomOptionLabel, fitZoomOptionLabel)'
+            }
         };
+    }
+
+    __computeZoomItems(autoZoomOptionLabel, fitZoomOptionLabel) {
+        return [
+            { label: autoZoomOptionLabel, value:'auto' },
+            { label: fitZoomOptionLabel, value:'page-fit' },
+            { label: '50%', value:'0.5' },
+            { label: '75%', value:'0.75' },
+            { label: '100%', value:'1.0' },
+            { label: '125%', value:'1.25' },
+            { label: '150%', value:'1.5' },
+            { label: '200%', value:'2.0' },
+            { label: '300%', value:'3.0' },
+            { label: '400%', value:'4.0' }
+        ]
     }
 
     static get observers() {
@@ -536,18 +554,6 @@ class PdfViewerElement extends
         this.__resizeObserver = new ResizeObserver(() => {
             requestAnimationFrame(() => this.__recalculateSizes());
         });
-        this.$.zoom.items = [
-            { label: this.autoZoomOptionLabel, value:'auto' },
-            { label: this.fitZoomOptionLabel, value:'page-fit' },
-            { label: '50%', value:'0.5' },
-            { label: '75%', value:'0.75' },
-            { label: '100%', value:'1.0' },
-            { label: '125%', value:'1.25' },
-            { label: '150%', value:'1.5' },
-            { label: '200%', value:'2.0' },
-            { label: '300%', value:'3.0' },
-            { label: '400%', value:'4.0' }
-        ];
 
         this.__resizeObserver.observe(this);
     }
