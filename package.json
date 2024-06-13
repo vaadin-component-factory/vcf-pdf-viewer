@@ -32,6 +32,7 @@
     "@vaadin/list-box": "^24.1.1",
     "@vaadin/select": "^24.1.1",
     "@vaadin/text-field": "^24.1.1",
+    "@vaadin/tooltip": "^24.1.1",
     "@vaadin/vaadin-lumo-styles": "^24.1.1",
     "@vaadin/vaadin-material-styles": "^24.1.1",
     "@vaadin/vaadin-themable-mixin": "^24.1.1",
