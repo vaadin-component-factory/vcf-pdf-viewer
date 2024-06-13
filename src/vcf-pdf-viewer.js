@@ -7,6 +7,7 @@ import '@vaadin/select';
 import '@vaadin/item';
 import '@vaadin/button';
 import '@vaadin/icon';
+import '@vaadin/tooltip';
 
 import * as pdfjsLib from '../pdfjs/dist/pdf';
 import * as pdfjsViewer from '../pdfjs/dist/pdf_viewer';
@@ -261,6 +262,7 @@ class PdfViewerElement extends
             <div id="toolbar" part="toolbar">
                 <vaadin-button id="sidebarToggle" part="toolbar-button toolbar-button-toogle-sidebar" theme="icon" on-click="__toogleSidebar" aria-label="Sidebar toggle">
                     <vaadin-icon part="toggle-button-icon" slot="prefix"></vaadin-icon>
+                    <vaadin-tooltip slot="tooltip" text="{{sidebarToggleTooltip}}"></vaadin-tooltip>
                 </vaadin-button>
                 <span id="title" part="toolbar-text toolbar-title">{{__title}}</span>
                 <vaadin-select id="zoom" part="toolbar-zoom" value="{{zoom}}" items="[[__zoomItems]]">
@@ -271,9 +273,11 @@ class PdfViewerElement extends
                     <span id="totalPages" part="toolbar-text toolbar-total-pages">{{__totalPages}}</span>
                     <vaadin-button id="previousPage" part="toolbar-button toolbar-button-previous-page" theme="icon" on-click="__previousPage" aria-label="Previous page">
                         <vaadin-icon part="previous-page-button-icon" slot="prefix"></vaadin-icon>
+                        <vaadin-tooltip slot="tooltip" text="{{previousPageTooltip}}"></vaadin-tooltip>
                     </vaadin-button>
                     <vaadin-button id="nextPage" part="toolbar-button toolbar-button-next-page" theme="icon" on-click="__nextPage" aria-label="Next page">
                         <vaadin-icon part="next-page-button-icon" slot="prefix"></vaadin-icon>
+                        <vaadin-tooltip slot="tooltip" text="{{nextPageTooltip}}"></vaadin-tooltip>
                     </vaadin-button>
                 </div>
                 <slot></slot>
@@ -434,7 +438,31 @@ class PdfViewerElement extends
             },
             __zoomItems: {
                 computed: '__computeZoomItems(autoZoomOptionLabel, fitZoomOptionLabel)'
-            }
+            },
+
+             /**
+             * Property to define a custom tooltip for the sidebar toggle button
+             */
+             sidebarToggleTooltip: {
+                type: String,
+                value: ""
+            },
+
+            /**
+             * Property to define a custom tooltip for the previous page button 
+             */
+            previousPageTooltip: {
+                type: String,
+                value: ""
+            },
+
+            /**
+             * Property to define a custom tooltip for the next page button
+             */
+            nextPageTooltip: {
+                type: String,
+                value: ""
+            },
         };
     }
 
