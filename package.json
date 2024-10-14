@@ -1,6 +1,6 @@
 {
   "name": "@vaadin-component-factory/vcf-pdf-viewer",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "Polymer element providing pdf viewer",
   "main": "vcf-pdf-viewer.js",
   "repository": {
@@ -28,6 +28,7 @@
     "@vaadin/button": "^24.1.1",
     "@vaadin/component-base": "^24.1.1",
     "@vaadin/icon": "^24.1.1",
+    "@vaadin/icons": "^24.1.1",
     "@vaadin/item": "^24.1.1",
     "@vaadin/list-box": "^24.1.1",
     "@vaadin/select": "^24.1.1",

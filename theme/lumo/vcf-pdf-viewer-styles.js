@@ -13,7 +13,7 @@ import '@vaadin/item/theme/lumo/vaadin-item-styles.js';
 registerStyles(
     'vcf-pdf-viewer',
     css`
-        :host {
+      :host {
         background-color: var(--lumo-base-color);
         border: 1px solid var(--lumo-contrast-10pct);
         border-radius: var(--lumo-border-radius, var(--lumo-border-radius-m));
@@ -47,7 +47,7 @@ registerStyles(
         justify-content: flex-end;
       }
 
-      [part~="toolbar-current-page"] {
+      ::slotted(.toolbar-current-page) {
         width: 3.25em;
       }
 
@@ -70,7 +70,7 @@ registerStyles(
         text-overflow: ellipsis;
       }
 
-      [part~="toolbar-button"] {
+      ::slotted(.toolbar-button){
         height: var(--lumo-size-m);
         border-radius: var(--lumo-border-radius, var(--lumo-border-radius-m));
         color: var(--lumo-contrast-80pct);
@@ -78,47 +78,31 @@ registerStyles(
         margin: var(--lumo-space-xs);
         background: transparent;
         border: none;
-        padding-top: 0.2em;
+        padding-top: 0.3em;
       }
 
-      [part~="toolbar-button"][disabled] {
+      ::slotted(.toolbar-button[disabled]) {
         color: var(--lumo-contrast-40pct);
       }
 
-      [part~="toolbar-button"]:hover {
+      ::slotted(.toolbar-button:hover) {
         background-color: var(--lumo-contrast-5pct);
         color: var(--lumo-contrast-80pct);
       }
 
-      [part~="toolbar-button"][disabled]:hover {
+      ::slotted(.toolbar-button[disabled]:hover) {
         background-color: transparent;
         color: var(--lumo-contrast-40pct);
       }
 
-      [part~="toolbar-button"]:focus {
+      ::slotted(.toolbar-button:focus) {
         outline: none;
         box-shadow: 0 0 0 2px var(--lumo-primary-color-50pct);
       }
 
-      [part~="toolbar-button"] {
+      ::slotted(.toolbar-button) {
         font-family: 'lumo-icons';
         font-size: var(--lumo-icon-size-m);
-      }
-
-      [part~="previous-page-button-icon"]::before {
-        content: var(--lumo-icons-angle-up);
-      }
-
-      [part~="next-page-button-icon"]::before {
-        content: var(--lumo-icons-angle-down);
-      }
-
-      [part~="toggle-button-icon"]::before {
-        content: var(--lumo-icons-chevron-right);
-      }
-
-      #outerContainer.sidebarOpen [part~="toggle-button-icon"]::before {
-        content: var(--lumo-icons-chevron-left);
       }
 
       .page {
@@ -159,7 +143,7 @@ registerStyles(
         flex: none;
       }
 
-      [part~="toolbar"].small-size [part~="toolbar-zoom"] {
+      [part~="toolbar"].small-size ::slotted(.toolbar-zoom) {
         position: absolute;
         bottom: var(--lumo-space-s);
         left: 50%;

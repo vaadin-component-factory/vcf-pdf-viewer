@@ -7,6 +7,7 @@ import '@vaadin/select';
 import '@vaadin/item';
 import '@vaadin/button';
 import '@vaadin/icon';
+import '@vaadin/icons';
 import '@vaadin/tooltip';
 
 import * as pdfjsLib from '../pdfjs/dist/pdf';
@@ -56,8 +57,8 @@ class PdfViewerElement extends
             [part~="toolbar"] #totalPages,
             [part~="toolbar"] #previousPage,
             [part~="toolbar"] #nextPage,
-            [part~="toolbar"] [part~="toolbar-zoom"],
-            [part~="toolbar"] [part~="toolbar-button-toogle-sidebar"] {
+            [part~="toolbar"] #zoom,
+            [part~="toolbar"] #sidebarToggle {
                 display: none;
             }
 
@@ -66,8 +67,8 @@ class PdfViewerElement extends
             [part~="toolbar"].ready #totalPages,
             [part~="toolbar"].ready #previousPage,
             [part~="toolbar"].ready #nextPage,
-            [part~="toolbar"].ready [part~="toolbar-zoom"],
-            [part~="toolbar"].ready [part~="toolbar-button-toogle-sidebar"] {
+            [part~="toolbar"].ready #zoom,
+            [part~="toolbar"].ready #sidebarToggle {
                 display: inherit;
             }
 
@@ -195,7 +196,7 @@ class PdfViewerElement extends
                 align-items: baseline;
             }
 
-            #currentPage {
+            ::slotted(#currentPage) {
                 align-self: baseline;
             }
 
@@ -233,7 +234,7 @@ class PdfViewerElement extends
                 background-color: rgba(0, 0, 0, 0.15);
             }
 
-            #sidebarToggle {
+            ::slotted(#sidebarToggle) {
                 margin-left: -10px;
                 margin-right: 15px;
                 border: 2px solid;
@@ -241,12 +242,12 @@ class PdfViewerElement extends
                 width: 40px;
             }
 
-            #nextPage, #previousPage {
+            ::slotted(#nextPage), ::slotted(#previousPage) {
                 width: 30px;
                 margin: 0;
             }
-
-            [part~="toolbar"].ready [part~="toolbar-zoom"].hide-zoom {
+            
+            [part~="toolbar"].ready ::slotted(.toolbar-zoom.hide-zoom) {
                 display: none;
             }
 
@@ -259,26 +260,16 @@ class PdfViewerElement extends
             </div>            
         </div>   
         <div id="mainContainer" part="main-container">
-            <div id="toolbar" part="toolbar">
-                <vaadin-button id="sidebarToggle" part="toolbar-button toolbar-button-toogle-sidebar" theme="icon" on-click="__toogleSidebar" aria-label="Sidebar toggle">
-                    <vaadin-icon part="toggle-button-icon" slot="prefix"></vaadin-icon>
-                    <vaadin-tooltip slot="tooltip" text="{{sidebarToggleTooltip}}"></vaadin-tooltip>
-                </vaadin-button>
+            <div id="toolbar" part="toolbar">               
+                <slot name="sidebar-toggle-button-slot"></slot>
                 <span id="title" part="toolbar-text toolbar-title">{{__title}}</span>
-                <vaadin-select id="zoom" part="toolbar-zoom" value="{{zoom}}" items="[[__zoomItems]]">
-                </vaadin-select>
+                <slot name="toolbar-zoom-slot"></slot>
                 <div part="toolbar-pages">
-                    <vaadin-text-field id="currentPage" part="toolbar-current-page" value="{{currentPage}}" on-change="__pageChange"></vaadin-text-field>
+                    <slot name="toolbar-current-page-slot"></slot>
                     <span id="pageSeparator" part="toolbar-text toolbar-page-separator">/</span>
                     <span id="totalPages" part="toolbar-text toolbar-total-pages">{{__totalPages}}</span>
-                    <vaadin-button id="previousPage" part="toolbar-button toolbar-button-previous-page" theme="icon" on-click="__previousPage" aria-label="Previous page">
-                        <vaadin-icon part="previous-page-button-icon" slot="prefix"></vaadin-icon>
-                        <vaadin-tooltip slot="tooltip" text="{{previousPageTooltip}}"></vaadin-tooltip>
-                    </vaadin-button>
-                    <vaadin-button id="nextPage" part="toolbar-button toolbar-button-next-page" theme="icon" on-click="__nextPage" aria-label="Next page">
-                        <vaadin-icon part="next-page-button-icon" slot="prefix"></vaadin-icon>
-                        <vaadin-tooltip slot="tooltip" text="{{nextPageTooltip}}"></vaadin-tooltip>
-                    </vaadin-button>
+                    <slot name="previous-page-button-slot"></slot>
+                    <slot name="next-page-button-slot"></slot>
                 </div>
                 <slot></slot>
             </div>
@@ -287,8 +278,7 @@ class PdfViewerElement extends
                 <div id="viewer" part="viewer"></div>
             </div>
         </div>
-
-     </div>
+    </div>
     `;
     }
 
@@ -297,7 +287,7 @@ class PdfViewerElement extends
     }
 
     static get version() {
-        return '1.4.1';
+        return '3.0.0';
     }
 
     static get properties() {
@@ -357,8 +347,7 @@ class PdfViewerElement extends
              */
             zoom: {
                 type: String,
-                value: 'auto',
-                observer: '__zoomChanged'
+                value: 'auto'
             },
             /**
              * The current page visible viewed right now
@@ -436,6 +425,7 @@ class PdfViewerElement extends
                 type: Boolean,
                 value: false
             },
+            
             __zoomItems: {
                 computed: '__computeZoomItems(autoZoomOptionLabel, fitZoomOptionLabel)'
             },
@@ -466,6 +456,104 @@ class PdfViewerElement extends
         };
     }
 
+    __createToolbarButton() {
+        const icon = document.createElement('vaadin-icon');
+        icon.setAttribute('slot', 'prefix');
+
+        const tooltip = document.createElement('vaadin-tooltip');
+        tooltip.setAttribute('slot', 'tooltip');
+
+        const button = document.createElement('vaadin-button');
+        button.classList.add('toolbar-button');
+        button.setAttribute('theme', 'icon');
+
+        button.appendChild(icon);        
+        button.appendChild(tooltip);        
+        return button;
+    }
+
+    /**
+     * Adds toggle button to the toolbar slot named "sidebar-toggle-button-slot".
+     */
+    _createSideBarToggleButton() {
+        const button = this.__createToolbarButton();
+        const icon = button.querySelector('vaadin-icon');
+        icon.classList.add('toggle-button-icon')
+        button.querySelector('vaadin-tooltip').setAttribute('text', this.sidebarToggleTooltip);
+        button.setAttribute('slot', 'sidebar-toggle-button-slot');
+        button.setAttribute('id','sidebarToggle');
+        button.setAttribute('aria-label', 'Sidebar toggle');
+        button.addEventListener('click', () => {
+            this.__toogleSidebar();
+            if(this.$.outerContainer.classList.contains('sidebarOpen')) {
+                icon.classList.add('sidebarOpen');
+            } else {
+                icon.classList.remove('sidebarOpen');
+            }            
+        });
+        this.appendChild(button);
+    }
+
+    /**
+     * Adds previous page button to the toolbar slot named "previous-page-button-slot".
+     */
+    _createPreviousPageButton(){
+        const button = this.__createToolbarButton();
+        button.querySelector('vaadin-icon').classList.add('previous-page-button-icon')
+        button.querySelector('vaadin-tooltip').setAttribute('text', this.previousPageTooltip);
+        button.setAttribute('slot', 'previous-page-button-slot');
+        button.setAttribute('id', 'previousPage');
+        button.setAttribute('aria-label', 'Previous page');
+        button.addEventListener('click', () => this.__previousPage());
+        this.appendChild(button);                  
+    }
+
+    /**
+     * Adds next page button to the toolbar slot named "next-page-button-slot".
+     */
+    _createNextPageButton() {
+        const button = this.__createToolbarButton();
+        button.querySelector('vaadin-icon').classList.add('next-page-button-icon')
+        button.querySelector('vaadin-tooltip').setAttribute('text', this.nextPageTooltip);
+        button.setAttribute('slot', 'next-page-button-slot');
+        button.setAttribute('id', 'nextPage');
+        button.setAttribute('aria-label', 'Next page');
+        button.addEventListener('click', () => this.__nextPage());
+        this.appendChild(button);
+    }
+
+    /**
+     * Adds current page text field to the toolbar slot named "toolbar-current-page-slot".
+     */
+    _createCurrentPageTextField() {
+        const textField = document.createElement('vaadin-text-field');
+        textField.setAttribute('slot', 'toolbar-current-page-slot');
+        textField.setAttribute('id', 'currentPage');
+        textField.classList.add('toolbar-current-page');
+        textField.setAttribute('value', this.currentPage);
+        textField.addEventListener('change', () => this.__pageChange());
+        this.appendChild(textField);
+    }
+
+    /**
+     * Adds zoom select to the toolbar slot named "toolbar-zoom-slot".
+     */
+    _createZoomSelect() {    
+        const select = document.createElement('vaadin-select');
+        select.setAttribute('slot', 'toolbar-zoom-slot');
+        select.setAttribute('id', 'zoom');
+        select.classList.add('toolbar-zoom');
+        select.setAttribute('value', this.zoom);
+        select.items = this.__zoomItems;
+        select.addEventListener('value-changed', (e) => this.__zoomChanged(e.detail.value));
+        if(this.hideZoom) {
+            select.classList.add('hide-zoom');
+        } else {
+            select.classList.remove('hide-zoom');
+        }
+        this.appendChild(select);
+    }
+
     __computeZoomItems(autoZoomOptionLabel, fitZoomOptionLabel) {
         return [
             { label: autoZoomOptionLabel, value:'auto' },
@@ -483,8 +571,7 @@ class PdfViewerElement extends
 
     static get observers() {
         return [
-            '__setTitle(__pdfTitle, __filename)',
-            '__updateZoomVisibility()'
+            '__setTitle(__pdfTitle, __filename)'
         ];
     }
 
@@ -504,16 +591,19 @@ class PdfViewerElement extends
         }
    }
 
-   __updateZoomVisibility() {
-        if(this.hideZoom) {
-            this.$.zoom.classList.add('hide-zoom');
-        } else {
-            this.$.zoom.classList.remove('hide-zoom');
-        }
+    _addToolbarButtons() {
+        this._createSideBarToggleButton();
+        this._createZoomSelect();
+        this._createCurrentPageTextField();
+        this._createPreviousPageButton();
+        this._createNextPageButton();
     }
 
     ready() {
         super.ready();
+
+        this._addToolbarButtons();
+
         this.$.viewerContainer.addEventListener('focus', e => this.__setFocused(true), true);
         this.$.viewerContainer.addEventListener('blur', e => this.__setFocused(false), true);
         this.$.viewerContainer.addEventListener('mousedown', e => {
@@ -577,6 +667,7 @@ class PdfViewerElement extends
             if(this.__thumbnailViewer && this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled){
                 this.__thumbnailViewer.scrollThumbnailIntoView(this.currentPage);
             }
+            this.querySelector('#currentPage').value = this.currentPage;
         });
 
         this.__resizeObserver = new ResizeObserver(() => {
@@ -712,8 +803,8 @@ class PdfViewerElement extends
     }
 
     __updatePageNumberStates() {
-        this.$.previousPage.disabled = (this.currentPage === "1");
-        this.$.nextPage.disabled = (this.currentPage === "" + this.__totalPages);
+        this.querySelector('#previousPage').disabled = (this.currentPage === "1");
+        this.querySelector('#nextPage').disabled = (this.currentPage === "" + this.__totalPages);
     }
 
     __zoomChanged(value) {
@@ -731,10 +822,11 @@ class PdfViewerElement extends
     }
 
     __pageChange(event) {
-        let pageNumber = parseInt(this.$.currentPage.value, 10);
+        const currentPageValue = this.querySelector('#currentPage').value;
+        let pageNumber = parseInt(currentPageValue, 10);
         if (isNaN(pageNumber)) {
             pageNumber = this.__viewer.currentPageNumber;
-            this.$.currentPage.value = "" + pageNumber;
+            this.querySelector('#currentPage').value = "" + pageNumber;
         }
         if (pageNumber < 1) {
             pageNumber = 1;
@@ -747,7 +839,7 @@ class PdfViewerElement extends
 
     setCurrentPage(value) {
         if (value != undefined) {
-            this.$.currentPage.value = "" + value;
+            this.querySelector('#currentPage').value = "" + value;
         }
         this.__pageChange();
     }
