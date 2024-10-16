@@ -7,6 +7,12 @@ import '@vaadin/vaadin-lumo-styles/font-icons.js';
 registerStyles(
     'vaadin-icon',
     css`
+      :host::before {
+        font-size: var(--lumo-icon-size-m);
+        font-family: 'lumo-icons';
+        line-height: 1;        
+      }
+
       :host(.previous-page-button-icon)::before {
         content: var(--pdf-viewer-previous-page-button-icon, var(--lumo-icons-angle-up));
       }
