@@ -70,7 +70,7 @@ registerStyles(
         text-overflow: ellipsis;
       }
 
-      ::slotted(.toolbar-button){
+      ::slotted(.toolbar-button) {
         height: var(--lumo-size-m);
         border-radius: var(--lumo-border-radius, var(--lumo-border-radius-m));
         color: var(--lumo-contrast-80pct);
@@ -78,7 +78,6 @@ registerStyles(
         margin: var(--lumo-space-xs);
         background: transparent;
         border: none;
-        padding-top: 0.3em;
       }
 
       ::slotted(.toolbar-button[disabled]) {
@@ -98,11 +97,6 @@ registerStyles(
       ::slotted(.toolbar-button:focus) {
         outline: none;
         box-shadow: 0 0 0 2px var(--lumo-primary-color-50pct);
-      }
-
-      ::slotted(.toolbar-button) {
-        font-family: 'lumo-icons';
-        font-size: var(--lumo-icon-size-m);
       }
 
       .page {
