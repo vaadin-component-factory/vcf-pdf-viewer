@@ -819,6 +819,7 @@ class PdfViewerElement extends
         // webcomponents/shadow dom messing with
         // TODO: Fix the issue so that we get rid of the error in log
         this.__viewer.currentScaleValue = value;
+        this.__viewer.forceRendering();
     }
 
     __pageChange(event) {
