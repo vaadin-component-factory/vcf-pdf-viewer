@@ -789,6 +789,24 @@ class PdfViewerElement extends
             this.__thumbnailViewer.scrollThumbnailIntoView(this.currentPage);
         }
     }
+
+    /**
+     * Rotates document clockwise.
+     */
+    rotateCw() {
+        let delta = 90;
+        this.__viewer.pagesRotation += delta;
+        this.__viewer.forceRendering();
+    }
+
+    /**
+     * Rotates document counterclockwise.
+     */
+    rotateCcw() {
+        let delta = -90;
+        this.__viewer.pagesRotation += delta;
+        this.__viewer.forceRendering();
+    }
 }
 
 customElements.define(PdfViewerElement.is, PdfViewerElement);
