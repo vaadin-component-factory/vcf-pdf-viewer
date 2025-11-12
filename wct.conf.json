@@ -1,0 +1,10 @@
+{
+  "npm": true,
+  "tests-start-page": "test/index.html",
+  "suites": ["test"],
+  "plugins": {
+    "local": {
+      "browsers": ["chrome", "firefox"]
+    }
+  }
+}

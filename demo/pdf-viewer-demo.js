@@ -1,3 +1,3 @@
 import '@polymer/iron-demo-helpers/demo-pages-shared-styles';
 import '@polymer/iron-demo-helpers/demo-snippet';
-import '../theme/lumo/vcf-pdf-viewer.js';
+import '../theme/base/vcf-pdf-viewer.js';

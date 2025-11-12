@@ -1,9 +1,5 @@
 import { registerStyles, css } from '@vaadin/vaadin-themable-mixin/register-styles.js';
 
-import '@vaadin/icon/theme/lumo/vaadin-icon-styles.js';
-
-import '@vaadin/vaadin-lumo-styles/font-icons.js';
-
 registerStyles(
     'vaadin-icon',
     css`
