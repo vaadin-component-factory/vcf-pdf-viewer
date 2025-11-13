@@ -4,28 +4,45 @@ registerStyles(
     'vcf-pdf-viewer',
     css`
       :host {
-        background-color: var(--lumo-base-color);
-        border: 1px solid var(--lumo-contrast-10pct);
-        border-radius: var(--lumo-border-radius, var(--lumo-border-radius-m));
-        font-family: var(--lumo-font-family);
+        --pdf-viewer-background-color: var(--vaadin-background-color);
+        --pdf-viewer-container-background-color: var(--lumo-contrast-5pct);
+        --pdf-viewer-border-color: var(--lumo-contrast-10pct);
+        --pdf-viewer-border-radius: var(--vaadin-radius-m);
+        --pdf-viewer-font-family: var(--lumo-font-family);
+        --pdf-viewer-box-shadow-color: var(--lumo-font-family);
+          
+          
+        background-color: var(--pdf-viewer-background-color);
+        border: 1px solid var(--pdf-viewer-border-color);
+        border-radius: var(--pdf-viewer-border-radius);
+        font-family: var(--pdf-viewer-font-family);
         position: relative;
       }
 
+      :host([data-application-theme='lumo']) {
+          --pdf-viewer-background-color: var(--lumo-base-color);
+          --pdf-viewer-container-background-color: var(--lumo-contrast-5pct);
+          --pdf-viewer-border-color: var(--lumo-contrast-10pct);
+          --pdf-viewer-border-radius: var(--lumo-border-radius-m);
+          --pdf-viewer-font-family: var(--lumo-font-family);
+          --pdf-viewer-box-shadow-color: var(--lumo-primary-color-50pct);
+      }
+
       [part~="viewer-container"] {
-        background-color: var(--lumo-contrast-5pct);
+        background-color: var(--pdf-viewer-container-background-color);
         outline: none;
       }
 
       [part~="viewer-container"][focus-ring] {
-        box-shadow: 0 0 0 2px var(--lumo-primary-color-50pct);
+        box-shadow: 0 0 0 2px var(--pdf-viewer-box-shadow-color);
       }
 
       [part~="toolbar"] {
         display: flex;
         flex-direction: row;
         align-items: center;
-        border-bottom: 1px solid var(--lumo-contrast-10pct);
-        padding: 0 var(--lumo-space-m);
+        border-bottom: 1px solid var(--pdf-viewer-border-color);
+        padding: 0 var(--vaadin-padding-m);
         z-index: 2;
       }
 
@@ -42,18 +59,18 @@ registerStyles(
       }
 
       [part~="toolbar-page-separator"] {
-        padding: 0 var(--lumo-space-xs);
+        padding: 0 var(--vaadin-padding-xs);
       }
 
       [part~="toolbar-total-pages"] {
-        padding-right: var(--lumo-space-m);
+        padding-right: var(--vaadin-padding-m);
       }
 
       [part~="toolbar-title"] {
         line-height: 2.25rem;
         display: inline-block;
         color: var(--lumo-contrast-80pct);
-        padding: var(--lumo-space-xs) 0;
+        padding: var(--vaadin-padding-xs) 0;
         flex: 1;
         white-space: nowrap;
         overflow: hidden;
@@ -65,7 +82,7 @@ registerStyles(
         border-radius: var(--lumo-border-radius, var(--lumo-border-radius-m));
         color: var(--lumo-contrast-80pct);
         transition: background-color 100ms, color 100ms;
-        margin: var(--lumo-space-xs);
+        margin: var(--vaadin-padding-xs);
         background: transparent;
         border: none;
       }
@@ -90,19 +107,19 @@ registerStyles(
       }
 
       .page {
-        padding: var(--lumo-space-m);
+        padding: var(--vaadin-padding-m);
         padding-bottom: 0;
       }
 
       .page:last-child {
-        padding-bottom: var(--lumo-space-m);
+        padding-bottom: var(--vaadin-padding-m);
       }
 
       .textLayer {
-        top: var(--lumo-space-m);
-        right: var(--lumo-space-m);
-        bottom: var(--lumo-space-m);
-        left: var(--lumo-space-m);
+        top: var(--vaadin-padding-m);
+        right: var(--vaadin-padding-m);
+        bottom: var(--vaadin-padding-m);
+        left: var(--vaadin-padding-m);
         opacity: 0.2;
       }
 
@@ -129,12 +146,12 @@ registerStyles(
 
       [part~="toolbar"].small-size ::slotted(.toolbar-zoom) {
         position: absolute;
-        bottom: var(--lumo-space-s);
+        bottom: var(--vaadin-padding-s);
         left: 50%;
         margin-left: -100px;
         background-color: white;
         box-shadow: var(--lumo-box-shadow-m);
-        padding: var(--lumo-space-xs);
+        padding: var(--vaadin-padding-xs);
         z-index: 99;
       }
      `,

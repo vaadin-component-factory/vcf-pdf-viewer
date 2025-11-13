@@ -1,7 +1,5 @@
-import { PolymerElement, html } from '@polymer/polymer/polymer-element';
-import { ThemableMixin } from '@vaadin/vaadin-themable-mixin';
-import { ElementMixin } from '@vaadin/component-base/src/element-mixin.js';
-import '@vaadin/polymer-legacy-adapter/template-renderer.js';
+import {LitElement, html, css} from 'lit';
+import {ElementMixin} from '@vaadin/component-base/src/element-mixin';
 import '@vaadin/text-field';
 import '@vaadin/select';
 import '@vaadin/item';
@@ -16,8 +14,10 @@ import * as pdfUtils from '../pdfjs/dist/ui_utils'
 import * as pdfjsLinkService from '../pdfjs/dist/pdf_link_service';
 import * as pdfjsThumbnailViewer from '../pdfjs/dist/pdf_thumbnail_viewer';
 import * as pdfjsRenderingQueue from '../pdfjs/dist/pdf_rendering_queue';
-import { NullL10n } from '../pdfjs/dist/l10n_utils';
+import {NullL10n} from '../pdfjs/dist/l10n_utils';
 import * as pdfjsWorker from '../pdfjs/dist/worker';
+import {ThemableMixin} from "@vaadin/vaadin-themable-mixin";
+
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 /**
@@ -34,18 +34,15 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
  * @mixes Vaadin.ThemableMixin
  * @demo demo/index.html
  */
-class PdfViewerElement extends
-    ElementMixin(
-        ThemableMixin(PolymerElement)) {
+class PdfViewerElement extends ThemableMixin(ElementMixin(LitElement)) {
 
-    static get template() {
-        return html`
-        <style>
+    static get styles() {
+        return css`
             :host {
                 display: flex;
                 flex-direction: column;
                 width: 100%;
-                height: 500px; 
+                height: 500px;
             }
 
             :host([hidden]) {
@@ -246,40 +243,42 @@ class PdfViewerElement extends
                 width: 30px;
                 margin: 0;
             }
-            
+
             [part~="toolbar"].ready ::slotted(.toolbar-zoom.hide-zoom) {
                 display: none;
             }
+        `;
+    }
 
-        </style>
-
-    <div id="outerContainer" part="outer-container" >
-        <div id="sidebarContainer" part="sidebar-container">
-            <div id="sidebarContent" part="sidebar-content">
-                <div id="thumbnailView" part="thumbnail-view"></div>
-            </div>            
-        </div>   
-        <div id="mainContainer" part="main-container">
-            <div id="toolbar" part="toolbar">               
-                <slot name="sidebar-toggle-button-slot"></slot>
-                <span id="title" part="toolbar-text toolbar-title">{{__title}}</span>
-                <slot name="toolbar-zoom-slot"></slot>
-                <div part="toolbar-pages">
-                    <slot name="toolbar-current-page-slot"></slot>
-                    <span id="pageSeparator" part="toolbar-text toolbar-page-separator">/</span>
-                    <span id="totalPages" part="toolbar-text toolbar-total-pages">{{__totalPages}}</span>
-                    <slot name="previous-page-button-slot"></slot>
-                    <slot name="next-page-button-slot"></slot>
+    render() {
+        return html`
+            <div id="outerContainer" part="outer-container">
+                <div id="sidebarContainer" part="sidebar-container">
+                    <div id="sidebarContent" part="sidebar-content">
+                        <div id="thumbnailView" part="thumbnail-view"></div>
+                    </div>
                 </div>
-                <slot></slot>
+                <div id="mainContainer" part="main-container">
+                    <div id="toolbar" part="toolbar">
+                        <slot name="sidebar-toggle-button-slot"></slot>
+                        <span id="title" part="toolbar-text toolbar-title">${this.__title}</span>
+                        <slot name="toolbar-zoom-slot"></slot>
+                        <div part="toolbar-pages">
+                            <slot name="toolbar-current-page-slot"></slot>
+                            <span id="pageSeparator" part="toolbar-text toolbar-page-separator">/</span>
+                            <span id="totalPages" part="toolbar-text toolbar-total-pages">${this.__totalPages}</span>
+                            <slot name="previous-page-button-slot"></slot>
+                            <slot name="next-page-button-slot"></slot>
+                        </div>
+                        <slot></slot>
+                    </div>
+
+                    <div id="viewerContainer" part="viewer-container" tabindex="0">
+                        <div id="viewer" part="viewer"></div>
+                    </div>
+                </div>
             </div>
-            
-            <div id="viewerContainer" part="viewer-container" tabindex="0">
-                <div id="viewer" part="viewer"></div>
-            </div>
-        </div>
-    </div>
-    `;
+        `;
     }
 
     static get is() {
@@ -287,7 +286,7 @@ class PdfViewerElement extends
     }
 
     static get version() {
-        return '3.1.0';
+        return '4.0.0';
     }
 
     static get properties() {
@@ -298,10 +297,7 @@ class PdfViewerElement extends
              * server as where the component is run, or that the server where the file is on should
              * be configured to allow loading files from other sites.
              */
-            src: {
-                type: String,
-                observer: '__srcChanged'
-            },
+            src: {type: String},
 
             /**
              * The viewer, which takes care of rendering content into a DOM element.
@@ -326,10 +322,7 @@ class PdfViewerElement extends
              * The title for the PDF shown in the toolbar of component. It uses both the file name and
              * the title in the PDF metadata if available.
              */
-            __title: {
-                type: String,
-                value: 'PDF'
-            },
+            __title: {type: String},
             /**
              * Relative filename
              */
@@ -345,17 +338,11 @@ class PdfViewerElement extends
              *  - 'auto', default value
              *  - 'page-fit', fit a full page into component
              */
-            zoom: {
-                type: String,
-                value: 'auto'
-            },
+            zoom: {type: String},
             /**
              * The current page visible viewed right now
              */
-            currentPage: {
-                type: String,
-                value: "1"
-            },
+            currentPage: {type: String},
             /**
              * Total amount of pages in an opened document
              */
@@ -364,96 +351,91 @@ class PdfViewerElement extends
             /**
              *  Loading state
              */
-            __loading: {
-                type: Boolean,
-                value: true
-            },
+            __loading: {type: Boolean},
 
             /**
              * Whether sidebar is open after loading or not
              */
-             __sidebarOpen: {
-                type: Boolean,
-                value: false
-            },
+            __sidebarOpen: {type: Boolean},
 
             /**
              * Flag to indicate if toolbar should only show filename as title
              */
-            toolbarOnlyFilename: {
-                type: Boolean,
-                value: false
-            },
+            toolbarOnlyFilename: {type: Boolean},
 
             /**
              * Property to define auto zoom label
              */
-             autoZoomOptionLabel: {
-                type: String,
-                value: "Automatic zoom"
-            },
+            autoZoomOptionLabel: {type: String},
 
             /**
              * Property to define page fit zoom label
              */
-            fitZoomOptionLabel: {
-                type: String,
-                value: "Page fit"
-            },
+            fitZoomOptionLabel: {type: String},
 
             /**
              * Property to define a custom title for the viewer
              */
-             customTitle: {
-                type: String,
-                value: ""
-            },
+            customTitle: {type: String},
 
             /**
              * Renders interactive form elements in the annotation layer (html) if true,
              * renders values of form elements directly onto the canvas if false
              */
-            renderInteractiveForms: {
-                type: Boolean,
-                value: true
-            },
+            renderInteractiveForms: {type: Boolean},
 
             /**
              * Allows to hide the zoom dropdown. By default it's always shown.
              */
-            hideZoom: {
-                type: Boolean,
-                value: false
-            },
-            
-            __zoomItems: {
-                computed: '__computeZoomItems(autoZoomOptionLabel, fitZoomOptionLabel)'
-            },
-
-             /**
-             * Property to define a custom tooltip for the sidebar toggle button
-             */
-             sidebarToggleTooltip: {
-                type: String,
-                value: ""
-            },
+            hideZoom: {type: Boolean},
 
             /**
-             * Property to define a custom tooltip for the previous page button 
+             * Property to define a custom tooltip for the sidebar toggle button
              */
-            previousPageTooltip: {
-                type: String,
-                value: ""
-            },
+            sidebarToggleTooltip: {type: String},
+
+            /**
+             * Property to define a custom tooltip for the previous page button
+             */
+            previousPageTooltip: {type: String},
 
             /**
              * Property to define a custom tooltip for the next page button
              */
-            nextPageTooltip: {
-                type: String,
-                value: ""
-            },
+            nextPageTooltip: {type: String},
         };
+    }
+
+    get __zoomItems() {
+        return this.__computeZoomItems(this.autoZoomOptionLabel, this.fitZoomOptionLabel);
+    }
+
+    constructor() {
+        super();
+        this.__title = "PDF";
+        this.zoom = "auto";
+        this.currentPage = "1";
+        this.__loading = true;
+        this.__sidebarOpen = false;
+        this.toolbarOnlyFilename = false;
+        this.autoZoomOptionLabel = "Automatic zoom";
+        this.fitZoomOptionLabel = "Page fit";
+        this.customTitle = "";
+        this.renderInteractiveForms = true;
+        this.hideZoom = false;
+        this.sidebarToggleTooltip = "";
+        this.previousPageTooltip = "";
+        this.nextPageTooltip = "";
+    }
+
+    updated(changedProperties) {
+        super.updated(changedProperties);
+        if (changedProperties.has('src')) {
+            this.__srcChanged(this.src);
+        }
+        if (changedProperties.has('__pdfTitle') || changedProperties.has('__filename')) {
+            this.__setTitle(this.__pdfTitle, this.__filename);
+        }
     }
 
     __createToolbarButton() {
@@ -467,8 +449,8 @@ class PdfViewerElement extends
         button.classList.add('toolbar-button');
         button.setAttribute('theme', 'icon');
 
-        button.appendChild(icon);        
-        button.appendChild(tooltip);        
+        button.appendChild(icon);
+        button.appendChild(tooltip);
         return button;
     }
 
@@ -481,15 +463,15 @@ class PdfViewerElement extends
         icon.classList.add('toggle-button-icon')
         button.querySelector('vaadin-tooltip').setAttribute('text', this.sidebarToggleTooltip);
         button.setAttribute('slot', 'sidebar-toggle-button-slot');
-        button.setAttribute('id','sidebarToggle');
+        button.setAttribute('id', 'sidebarToggle');
         button.setAttribute('aria-label', 'Sidebar toggle');
         button.addEventListener('click', () => {
             this.__toogleSidebar();
-            if(this.$.outerContainer.classList.contains('sidebarOpen')) {
+            if (this._outerContainer.classList.contains('sidebarOpen')) {
                 icon.classList.add('sidebarOpen');
             } else {
                 icon.classList.remove('sidebarOpen');
-            }            
+            }
         });
         this.appendChild(button);
     }
@@ -497,7 +479,7 @@ class PdfViewerElement extends
     /**
      * Adds previous page button to the toolbar slot named "previous-page-button-slot".
      */
-    _createPreviousPageButton(){
+    _createPreviousPageButton() {
         const button = this.__createToolbarButton();
         button.querySelector('vaadin-icon').classList.add('previous-page-button-icon')
         button.querySelector('vaadin-tooltip').setAttribute('text', this.previousPageTooltip);
@@ -505,7 +487,7 @@ class PdfViewerElement extends
         button.setAttribute('id', 'previousPage');
         button.setAttribute('aria-label', 'Previous page');
         button.addEventListener('click', () => this.__previousPage());
-        this.appendChild(button);                  
+        this.appendChild(button);
     }
 
     /**
@@ -538,7 +520,7 @@ class PdfViewerElement extends
     /**
      * Adds zoom select to the toolbar slot named "toolbar-zoom-slot".
      */
-    _createZoomSelect() {    
+    _createZoomSelect() {
         const select = document.createElement('vaadin-select');
         select.setAttribute('slot', 'toolbar-zoom-slot');
         select.setAttribute('id', 'zoom');
@@ -546,7 +528,7 @@ class PdfViewerElement extends
         select.setAttribute('value', this.zoom);
         select.items = this.__zoomItems;
         select.addEventListener('value-changed', (e) => this.__zoomChanged(e.detail.value));
-        if(this.hideZoom) {
+        if (this.hideZoom) {
             select.classList.add('hide-zoom');
         } else {
             select.classList.remove('hide-zoom');
@@ -556,29 +538,23 @@ class PdfViewerElement extends
 
     __computeZoomItems(autoZoomOptionLabel, fitZoomOptionLabel) {
         return [
-            { label: autoZoomOptionLabel, value:'auto' },
-            { label: fitZoomOptionLabel, value:'page-fit' },
-            { label: '50%', value:'0.5' },
-            { label: '75%', value:'0.75' },
-            { label: '100%', value:'1.0' },
-            { label: '125%', value:'1.25' },
-            { label: '150%', value:'1.5' },
-            { label: '200%', value:'2.0' },
-            { label: '300%', value:'3.0' },
-            { label: '400%', value:'4.0' }
+            {label: autoZoomOptionLabel, value: 'auto'},
+            {label: fitZoomOptionLabel, value: 'page-fit'},
+            {label: '50%', value: '0.5'},
+            {label: '75%', value: '0.75'},
+            {label: '100%', value: '1.0'},
+            {label: '125%', value: '1.25'},
+            {label: '150%', value: '1.5'},
+            {label: '200%', value: '2.0'},
+            {label: '300%', value: '3.0'},
+            {label: '400%', value: '4.0'}
         ]
     }
 
-    static get observers() {
-        return [
-            '__setTitle(__pdfTitle, __filename)'
-        ];
-    }
-
     __setTitle(pdfTitle, filename) {
-        if(this.customTitle){
+        if (this.customTitle) {
             this.__title = this.customTitle;
-        } else if(this.__viewer && this.toolbarOnlyFilename && filename) {
+        } else if (this.__viewer && this.toolbarOnlyFilename && filename) {
             this.__title = filename;
         } else if (pdfTitle && filename) {
             this.__title = pdfTitle + ' - ' + filename;
@@ -589,7 +565,7 @@ class PdfViewerElement extends
         } else {
             this.__title = 'PDF';
         }
-   }
+    }
 
     _addToolbarButtons() {
         this._createSideBarToggleButton();
@@ -599,14 +575,19 @@ class PdfViewerElement extends
         this._createNextPageButton();
     }
 
-    ready() {
-        super.ready();
+    firstUpdated() {
+        this._toolbar = this.shadowRoot.querySelector('#toolbar')
+        this._viewerContainer = this.shadowRoot.querySelector('#viewerContainer')
+        this._outerContainer = this.shadowRoot.querySelector('#outerContainer')
+        this._viewer = this.shadowRoot.querySelector('#viewer')
+        this._thumbnailView = this.shadowRoot.querySelector('#thumbnailView')
 
+        this.__recalculateSizes();
         this._addToolbarButtons();
 
-        this.$.viewerContainer.addEventListener('focus', e => this.__setFocused(true), true);
-        this.$.viewerContainer.addEventListener('blur', e => this.__setFocused(false), true);
-        this.$.viewerContainer.addEventListener('mousedown', e => {
+        this._viewerContainer.addEventListener('focus', e => this.__setFocused(true), true);
+        this._viewerContainer.addEventListener('blur', e => this.__setFocused(false), true);
+        this._viewerContainer.addEventListener('mousedown', e => {
             this._mousedown = true;
             const mouseUpListener = () => {
                 this._mousedown = false;
@@ -625,9 +606,9 @@ class PdfViewerElement extends
 
         // pdfViewer
         this.__viewer = new pdfjsViewer.PDFViewer({
-            container: this.$.viewerContainer,
+            container: this._viewerContainer,
             textLayerMode: 2,
-            viewer: this.$.viewer,
+            viewer: this._viewer,
             eventBus: eventBus,
             linkService: this.__linkService,
             renderingQueue: pdfRenderingQueue,
@@ -640,7 +621,7 @@ class PdfViewerElement extends
 
         // thumbnailViewer
         this.__thumbnailViewer = new pdfjsThumbnailViewer.PDFThumbnailViewer({
-            container: this.$.thumbnailView,
+            container: this._thumbnailView,
             eventBus: eventBus,
             linkService: this.__linkService,
             renderingQueue: pdfRenderingQueue,
@@ -654,7 +635,7 @@ class PdfViewerElement extends
             this.__viewer.currentScaleValue = this.zoom;
             this.__loading = false;
             this.__updateThumbnailViewer();
-            if(this.__sidebarOpen){
+            if (this.__sidebarOpen) {
                 this.__openSidebar();
             } else {
                 this.__closeSidebar();
@@ -664,7 +645,7 @@ class PdfViewerElement extends
         eventBus.on('pagechanging', (event) => {
             this.__updateCurrentPageValue(event.pageNumber);
             this.__updatePageNumberStates();
-            if(this.__thumbnailViewer && this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled){
+            if (this.__thumbnailViewer && this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled) {
                 this.__thumbnailViewer.scrollThumbnailIntoView(this.currentPage);
             }
             this.querySelector('#currentPage').value = this.currentPage;
@@ -677,12 +658,7 @@ class PdfViewerElement extends
         this.__resizeObserver.observe(this);
     }
 
-    connectedCallback() {
-        super.connectedCallback();
-        this.__recalculateSizes();
-    }
-
-    __updateCurrentPageValue(pageNumber){
+    __updateCurrentPageValue(pageNumber) {
         this.currentPage = "" + pageNumber;
         this.dispatchEvent(new CustomEvent('currentPage-changed'));
     }
@@ -690,21 +666,22 @@ class PdfViewerElement extends
     __recalculateSizes() {
         if (this.offsetWidth < 600) {
             this.classList.add('small-size');
-            this.$.toolbar.classList.add('small-size');
+            this._toolbar.classList.add('small-size');
         } else {
             this.classList.remove('small-size');
-            this.$.toolbar.classList.remove('small-size');
+            this._toolbar.classList.remove('small-size');
         }
     }
+
     __setFocused(focused) {
         if (focused) {
-            this.$.viewerContainer.setAttribute('focused', '');
+            this._viewerContainer.setAttribute('focused', '');
             if (!this._mousedown) {
-                this.$.viewerContainer.setAttribute('focus-ring', '');
+                this._viewerContainer.setAttribute('focus-ring', '');
             }
         } else {
-            this.$.viewerContainer.removeAttribute('focused');
-            this.$.viewerContainer.removeAttribute('focus-ring');
+            this._viewerContainer.removeAttribute('focused');
+            this._viewerContainer.removeAttribute('focus-ring');
         }
     }
 
@@ -729,7 +706,7 @@ class PdfViewerElement extends
             this.__viewer.setDocument(pdfDocument);
             this.__linkService.setDocument(pdfDocument);
 
-            this.$.toolbar.classList.add('ready');
+            this._toolbar.classList.add('ready');
             this.__totalPages = pdfDocument.numPages;
             this.__updatePageNumberStates();
             this.__setPdfTitleFromMetadata(pdfDocument).then(() => {
@@ -754,7 +731,7 @@ class PdfViewerElement extends
      *                      destruction is completed.
      */
     __close() {
-        this.$.toolbar.classList.remove('ready');
+        this._toolbar.classList.remove('ready');
         this.__filename = 'PDF';
         if (!this.__document) {
             return Promise.resolve();
@@ -858,7 +835,7 @@ class PdfViewerElement extends
     }
 
     __toogleSidebar() {
-        if (this.$.outerContainer.classList.length == 0) {
+        if (this._outerContainer.classList.length == 0) {
             this.__openSidebar();
         } else {
             this.__closeSidebar();
@@ -866,21 +843,21 @@ class PdfViewerElement extends
     }
 
     __openSidebar() {
-        if(!this.__thumbnailViewer ||this.__loading){
+        if (!this.__thumbnailViewer || this.__loading) {
             this.__sidebarOpen = true;
         } else {
             this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled = true;
             this.__updateThumbnailViewer();
-            this.$.outerContainer.classList.add('sidebarOpen');
+            this._outerContainer.classList.add('sidebarOpen');
         }
     }
 
     __closeSidebar() {
-        if(!this.__thumbnailViewer || this.__loading){
+        if (!this.__thumbnailViewer || this.__loading) {
             this.__sidebarOpen = false;
         } else {
             this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled = false;
-            this.$.outerContainer.classList.remove('sidebarOpen');
+            this._outerContainer.classList.remove('sidebarOpen');
         }
     }
 
@@ -908,9 +885,9 @@ class PdfViewerElement extends
                     }
                 }));
                 return false;
-              };
+            };
         }
-        if(this.__thumbnailViewer && this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled){
+        if (this.__thumbnailViewer && this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled) {
             this.__thumbnailViewer.scrollThumbnailIntoView(this.currentPage);
         }
     }

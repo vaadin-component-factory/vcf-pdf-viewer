@@ -4,28 +4,41 @@ registerStyles(
     'vaadin-icon',
     css`
       :host::before {
-        font-size: var(--lumo-icon-size-m);
-        font-family: 'lumo-icons';
-        line-height: 1;        
+        font-size: var(--vaadin-icon-size);
+        font-family: var(--pdf-viewer-font-family);
+        line-height: 1;
+
+        --pdf-viewer-previous-page-button-icon: '\ea07';
+        --pdf-viewer-next-page-button-icon: '\ea08';
+        --pdf-viewer-toggle-button-icon-closed: '\ea12';
+        --pdf-viewer-toggle-button-icon-open: '\ea11';
+      }
+
+      :host([data-application-theme='lumo'])::before {
+          font-family: "lumo-icons";
+          --pdf-viewer-previous-page-button-icon: var(--lumo-icons-angle-up);
+          --pdf-viewer-next-page-button-icon: var(--lumo-icons-angle-down);
+          --pdf-viewer-toggle-button-icon-closed: var(--lumo-icons-chevron-right);
+          --pdf-viewer-toggle-button-icon-open: var(--lumo-icons-chevron-left);
       }
 
       :host(.previous-page-button-icon)::before {
-        content: var(--pdf-viewer-previous-page-button-icon, var(--lumo-icons-angle-up));
+        content: var(--pdf-viewer-previous-page-button-icon);
       }
 
       :host(.next-page-button-icon)::before {
-        content: var(--pdf-viewer-next-page-button-icon, var(--lumo-icons-angle-down));
+        content: var(--pdf-viewer-next-page-button-icon);
       }
 
       :host(.toggle-button-icon)::before {
-        content: var(--pdf-viewer-toggle-button-icon, var(--lumo-icons-chevron-right));
+        content: var(--pdf-viewer-toggle-button-icon-closed);
       }
    
       :host(.sidebarOpen.toggle-button-icon)::before {
-        content:var(--pdf-viewer-toggle-button-icon, var(--lumo-icons-chevron-left));
+        content:var(--pdf-viewer-toggle-button-icon-open);
       } 
    
      `,
-    { moduleId: 'lumo-vcf-pdf-viewer-toolbar-icons' }
+    { moduleId: 'base-vcf-pdf-viewer-toolbar-icons' }
   );
   
