@@ -37,7 +37,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
  * @mixes Vaadin.ThemableMixin
  * @demo demo/index.html
  */
-class PdfViewerElement extends ResizeMixin(
+export class PdfViewerElement extends ResizeMixin(
   ThemeDetectionMixin(ThemableMixin(ElementMixin(LitElement))),
 ) {
   static get styles() {
