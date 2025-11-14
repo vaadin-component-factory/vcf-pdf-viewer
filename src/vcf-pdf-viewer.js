@@ -1,5 +1,9 @@
 import { LitElement, html, css } from "lit";
 import { ElementMixin } from "@vaadin/component-base/src/element-mixin";
+import { ThemeDetectionMixin } from "@vaadin/vaadin-themable-mixin/vaadin-theme-detection-mixin";
+import { ResizeMixin } from "@vaadin/component-base";
+import { ThemableMixin } from "@vaadin/vaadin-themable-mixin";
+
 import "@vaadin/text-field";
 import "@vaadin/select";
 import "@vaadin/item";
@@ -16,7 +20,6 @@ import * as pdfjsThumbnailViewer from "../pdfjs/dist/pdf_thumbnail_viewer";
 import * as pdfjsRenderingQueue from "../pdfjs/dist/pdf_rendering_queue";
 import { NullL10n } from "../pdfjs/dist/l10n_utils";
 import * as pdfjsWorker from "../pdfjs/dist/worker";
-import { ThemableMixin } from "@vaadin/vaadin-themable-mixin";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
@@ -34,7 +37,9 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
  * @mixes Vaadin.ThemableMixin
  * @demo demo/index.html
  */
-class PdfViewerElement extends ThemableMixin(ElementMixin(LitElement)) {
+class PdfViewerElement extends ResizeMixin(
+  ThemeDetectionMixin(ThemableMixin(ElementMixin(LitElement))),
+) {
   static get styles() {
     return css`
       :host {
@@ -608,7 +613,6 @@ class PdfViewerElement extends ThemableMixin(ElementMixin(LitElement)) {
     this._viewer = this.shadowRoot.querySelector("#viewer");
     this._thumbnailView = this.shadowRoot.querySelector("#thumbnailView");
 
-    this.__recalculateSizes();
     this._addToolbarButtons();
 
     this._viewerContainer.addEventListener(
@@ -687,27 +691,11 @@ class PdfViewerElement extends ThemableMixin(ElementMixin(LitElement)) {
       }
       this.querySelector("#currentPage").value = this.currentPage;
     });
-
-    this.__resizeObserver = new ResizeObserver(() => {
-      requestAnimationFrame(() => this.__recalculateSizes());
-    });
-
-    this.__resizeObserver.observe(this);
   }
 
   __updateCurrentPageValue(pageNumber) {
     this.currentPage = "" + pageNumber;
     this.dispatchEvent(new CustomEvent("currentPage-changed"));
-  }
-
-  __recalculateSizes() {
-    if (this.offsetWidth < 600) {
-      this.classList.add("small-size");
-      this._toolbar.classList.add("small-size");
-    } else {
-      this.classList.remove("small-size");
-      this._toolbar.classList.remove("small-size");
-    }
   }
 
   __setFocused(focused) {
