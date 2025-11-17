@@ -1,7 +1,7 @@
 import { LitElement, html, css } from "lit";
 import { ElementMixin } from "@vaadin/component-base/src/element-mixin";
 import { ThemeDetectionMixin } from "@vaadin/vaadin-themable-mixin/vaadin-theme-detection-mixin";
-import { ResizeMixin } from "@vaadin/component-base";
+import { SlotStylesMixin} from '@vaadin/component-base/';
 import { ThemableMixin } from "@vaadin/vaadin-themable-mixin";
 
 import "@vaadin/text-field";
@@ -37,7 +37,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
  * @mixes Vaadin.ThemableMixin
  * @demo demo/index.html
  */
-export class PdfViewerElement extends ResizeMixin(
+export class PdfViewerElement extends SlotStylesMixin(
   ThemeDetectionMixin(ThemableMixin(ElementMixin(LitElement))),
 ) {
   static get styles() {
@@ -237,24 +237,73 @@ export class PdfViewerElement extends ResizeMixin(
         background-color: rgba(0, 0, 0, 0.15);
       }
 
-      ::slotted(#sidebarToggle) {
-        margin-left: -10px;
-        margin-right: 15px;
-        border: 2px solid;
-        border-color: rgba(0, 0, 0, 0.5);
-        width: 40px;
-      }
-
-      ::slotted(#nextPage),
-      ::slotted(#previousPage) {
-        width: 30px;
-        margin: 0;
-      }
-
       [part~="toolbar"].ready ::slotted(.toolbar-zoom.hide-zoom) {
         display: none;
       }
     `;
+  }
+
+  get slotStyles() {
+  const tag = 'vcf-pdf-viewer';
+  const lumo = '[data-application-theme="lumo"]';
+
+  /**
+   * These rules target a <vaadin-text-field> element with a child element
+   * having the 'toggle-button' class name. We can't use `::slotted()` as
+   * the toggle button is not a direct child of the month picker element.
+   * Also for `vaadin-popover` we can't use `::part()` after `::slotted()`.
+   */
+  return [
+    `   
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button vaadin-icon {
+          display: none;
+        }
+        
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button {
+          flex: none;
+          line-height: 1;
+          text-align: center;
+          background: var(--vaadin-input-field-button-text-color, var(--vaadin-text-color-secondary));
+          cursor: var(--vaadin-clickable-cursor);
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
+          -webkit-user-select: none;
+          user-select: none;
+          height: var(--vaadin-icon-size, 1.5lh);
+          width: var(--vaadin-icon-size, 1.5lh);
+          padding: 0;
+          mask-size: var(--vaadin-icon-visual-size, 100%);
+          mask-position: 50%;
+          mask-repeat: no-repeat;
+        }
+        
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button#sidebarToggle {
+          mask-image: var(--pdf-viewer-toggle-button-icon-closed);
+        }
+        
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button#sidebarToggle:has(vaadin-icon.sidebarOpen) {
+          mask-image: var(--pdf-viewer-toggle-button-icon-open);
+        }
+        
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button#previousPage {
+          mask-image: var(--pdf-viewer-previous-page-button-icon);
+        }
+        
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button#nextPage {
+          mask-image: var(--pdf-viewer-next-page-button-icon);
+        }
+        
+        ${tag}${lumo} vaadin-button[theme~="icon"] {
+          padding-left: 6px;
+          padding-right: 6px;
+        }
+        
+        ${tag}${lumo} vaadin-button.toolbar-button#sidebarToggle {
+          border: 2px solid;
+          border-color: rgba(0, 0, 0, 0.5);
+        }      
+      `,
+    ];
   }
 
   render() {
@@ -468,7 +517,7 @@ export class PdfViewerElement extends ResizeMixin(
 
     const button = document.createElement("vaadin-button");
     button.classList.add("toolbar-button");
-    button.setAttribute("theme", "icon");
+    button.setAttribute("theme", "icon tertiary contrast");
 
     button.appendChild(icon);
     button.appendChild(tooltip);
