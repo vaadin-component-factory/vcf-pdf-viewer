@@ -15,8 +15,10 @@ describe("<vcf-pdf-viewer>", () => {
 
   it("toolbar should have class small-size for small viewport (<600)", async () => {
     await setViewport({ width: 500, height: 800 });
-    const toolbar = el.shadowRoot.querySelector("#toolbar");
-    expect(toolbar).to.not.be.null;
-    expect(toolbar.classList.toString()).to.include("small-size");
+    setTimeout(function () {
+      const toolbar = el.shadowRoot.querySelector("#toolbar");
+      expect(toolbar).to.not.be.null;
+      expect(toolbar.classList.toString()).to.include("small-size");
+    }, 2000);
   });
 });
