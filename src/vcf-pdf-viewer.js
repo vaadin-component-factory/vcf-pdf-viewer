@@ -1,7 +1,7 @@
 import { LitElement, html, css } from "lit";
 import { ElementMixin } from "@vaadin/component-base/src/element-mixin";
 import { ThemeDetectionMixin } from "@vaadin/vaadin-themable-mixin/vaadin-theme-detection-mixin";
-import { SlotStylesMixin} from '@vaadin/component-base/';
+import { SlotStylesMixin } from "@vaadin/component-base/";
 import { ThemableMixin } from "@vaadin/vaadin-themable-mixin";
 
 import "@vaadin/text-field";
@@ -244,17 +244,17 @@ export class PdfViewerElement extends SlotStylesMixin(
   }
 
   get slotStyles() {
-  const tag = 'vcf-pdf-viewer';
-  const lumo = '[data-application-theme="lumo"]';
+    const tag = "vcf-pdf-viewer";
+    const lumo = '[data-application-theme="lumo"]';
 
-  /**
-   * These rules target a <vaadin-text-field> element with a child element
-   * having the 'toggle-button' class name. We can't use `::slotted()` as
-   * the toggle button is not a direct child of the month picker element.
-   * Also for `vaadin-popover` we can't use `::part()` after `::slotted()`.
-   */
-  return [
-    `   
+    /**
+     * These rules target a <vaadin-text-field> element with a child element
+     * having the 'toggle-button' class name. We can't use `::slotted()` as
+     * the toggle button is not a direct child of the month picker element.
+     * Also for `vaadin-popover` we can't use `::part()` after `::slotted()`.
+     */
+    return [
+      `   
         ${tag}:not(${lumo}) vaadin-button.toolbar-button vaadin-icon {
           display: none;
         }
