@@ -1,7 +1,7 @@
 import { LitElement, html, css } from "lit";
 import { ElementMixin } from "@vaadin/component-base/src/element-mixin";
 import { ThemeDetectionMixin } from "@vaadin/vaadin-themable-mixin/vaadin-theme-detection-mixin";
-import { SlotStylesMixin } from "@vaadin/component-base/";
+import { ResizeMixin, SlotStylesMixin } from "@vaadin/component-base/";
 import { ThemableMixin } from "@vaadin/vaadin-themable-mixin";
 
 import "@vaadin/text-field";
@@ -37,8 +37,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
  * @mixes Vaadin.ThemableMixin
  * @demo demo/index.html
  */
-export class PdfViewerElement extends SlotStylesMixin(
-  ThemeDetectionMixin(ThemableMixin(ElementMixin(LitElement))),
+export class PdfViewerElement extends ResizeMixin(
+  SlotStylesMixin(ThemeDetectionMixin(ThemableMixin(ElementMixin(LitElement)))),
 ) {
   static get styles() {
     return css`
@@ -976,6 +976,16 @@ export class PdfViewerElement extends SlotStylesMixin(
       this.__thumbnailViewer.renderingQueue.isThumbnailViewEnabled
     ) {
       this.__thumbnailViewer.scrollThumbnailIntoView(this.currentPage);
+    }
+  }
+
+  _onResize() {
+    if (this.offsetWidth < 600) {
+      this.classList.add("small-size");
+      this._toolbar.classList.add("small-size");
+    } else {
+      this.classList.remove("small-size");
+      this._toolbar.classList.remove("small-size");
     }
   }
 
