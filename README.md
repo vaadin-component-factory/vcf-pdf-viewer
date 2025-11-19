@@ -4,7 +4,8 @@
 
 # &lt;vcf-pdf-viewer&gt;
 
-[&lt;vcf-pdf-viewer&gt;](https://github.com/vaadin-component-factory/vcf-pdf-viewer) is a Web Component that provides a PDF viewer functionality. The component is developed in Polymer 3 and uses Mozilla's [PDF.js](https://github.com/mozilla/pdf.js)
+[&lt;vcf-pdf-viewer&gt;](https://github.com/vaadin-component-factory/vcf-pdf-viewer) is a Web Component that provides a PDF viewer functionality. The component is developed in Lit
+and uses Mozilla's [PDF.js](https://github.com/mozilla/pdf.js)
 
 This component is part of Vaadin Component Factory.
 
