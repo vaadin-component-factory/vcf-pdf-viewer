@@ -18,6 +18,7 @@ registerStyles(
       --pdf-viewer-toggle-button-icon-closed: var(--_vaadin-icon-menu);
       --pdf-viewer-toggle-button-icon-open: var(--_vaadin-icon-menu);
 
+      --vaadin-focus-ring-width: 2px;
       background-color: var(--pdf-viewer-background-color);
       border: 1px solid var(--pdf-viewer-border-color);
       border-radius: var(--pdf-viewer-border-radius);

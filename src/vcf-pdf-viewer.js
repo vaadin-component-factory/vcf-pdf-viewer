@@ -260,9 +260,16 @@ export class PdfViewerElement extends ResizeMixin(
         }
         
         ${tag}:not(${lumo}) vaadin-button.toolbar-button {
+          height: var(--vaadin-icon-size, 1.5lh);
+          width: var(--vaadin-icon-size, 1.5lh);
+          padding: 0;
+          justify-content: flex-start;
+          box-sizing: content-box;
+        }
+        
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button::before {
+          content: '';
           flex: none;
-          line-height: 1;
-          text-align: center;
           background: var(--vaadin-input-field-button-text-color, var(--vaadin-text-color-secondary));
           cursor: var(--vaadin-clickable-cursor);
           touch-action: manipulation;
@@ -271,25 +278,24 @@ export class PdfViewerElement extends ResizeMixin(
           user-select: none;
           height: var(--vaadin-icon-size, 1.5lh);
           width: var(--vaadin-icon-size, 1.5lh);
-          padding: 0;
           mask-size: var(--vaadin-icon-visual-size, 100%);
           mask-position: 50%;
           mask-repeat: no-repeat;
         }
         
-        ${tag}:not(${lumo}) vaadin-button.toolbar-button#sidebarToggle {
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button#sidebarToggle::before {
           mask-image: var(--pdf-viewer-toggle-button-icon-closed);
         }
         
-        ${tag}:not(${lumo}) vaadin-button.toolbar-button#sidebarToggle:has(vaadin-icon.sidebarOpen) {
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button#sidebarToggle:has(vaadin-icon.sidebarOpen)::before {
           mask-image: var(--pdf-viewer-toggle-button-icon-open);
         }
         
-        ${tag}:not(${lumo}) vaadin-button.toolbar-button#previousPage {
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button#previousPage::before {
           mask-image: var(--pdf-viewer-previous-page-button-icon);
         }
         
-        ${tag}:not(${lumo}) vaadin-button.toolbar-button#nextPage {
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button#nextPage::before {
           mask-image: var(--pdf-viewer-next-page-button-icon);
         }
         
@@ -337,7 +343,7 @@ export class PdfViewerElement extends ResizeMixin(
             <slot></slot>
           </div>
 
-          <div id="viewerContainer" part="viewer-container" tabindex="0">
+          <div id="viewerContainer" part="viewer-container">
             <div id="viewer" part="viewer"></div>
           </div>
         </div>
