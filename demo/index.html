@@ -58,6 +58,14 @@
         </script>
     </div>
 
+    <div id="pdf-viewer-programmatic-zoom">
+        <h3>Programmatic Zoom Change</h3>
+        <button onclick="document.querySelector('#programmaticZoomViewer').zoom = '1.5'">Set zoom to 150%</button>
+        <button onclick="document.querySelector('#programmaticZoomViewer').zoom = '2.0'">Set zoom to 200%</button>
+        <button onclick="document.querySelector('#programmaticZoomViewer').zoom = 'page-fit'">Set zoom to page fit</button>
+        <vcf-pdf-viewer id="programmaticZoomViewer" src="pdf-files/example-invoice.pdf"></vcf-pdf-viewer>
+    </div>
+
     <div>
         <h3>Try to Load a File That Can't Be Found</h3>
         <vcf-pdf-viewer src="pdf-files/non-existing-file.pdf"></vcf-pdf-viewer>

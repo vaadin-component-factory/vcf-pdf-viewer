@@ -512,6 +512,13 @@ export class PdfViewerElement extends ResizeMixin(
     ) {
       this.__setTitle(this.__pdfTitle, this.__filename);
     }
+    if (changedProperties.has("zoom")) {
+      const zoomSelect = this.querySelector("#zoom");
+      if (zoomSelect) {
+        zoomSelect.value = this.zoom;
+      }
+      this.__zoomChanged(this.zoom);
+    }
   }
 
   __createToolbarButton() {
