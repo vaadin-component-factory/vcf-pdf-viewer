@@ -500,25 +500,42 @@ export class PdfViewerElement extends ResizeMixin(
     this.previousPageTooltip = "";
     this.nextPageTooltip = "";
   }
+  
+  willUpdate(changedProperties) {
+    super.willUpdate(changedProperties);
 
-  updated(changedProperties) {
-    super.updated(changedProperties);
+    // Compute filename if src changes
     if (changedProperties.has("src")) {
-      this.__srcChanged(this.src);
+      this.__setFilename(this.src);
     }
+
+    // Compute title before rendering to avoid setting reactive properties during update
     if (
-      changedProperties.has("__pdfTitle") ||
-      changedProperties.has("__filename")
+      changedProperties.has("src") ||
+      changedProperties.has("customTitle") ||
+      changedProperties.has("toolbarOnlyFilename")
     ) {
       this.__setTitle(this.__pdfTitle, this.__filename);
     }
-    if (changedProperties.has("zoom")) {
-      const zoomSelect = this.querySelector("#zoom");
-      if (zoomSelect) {
-        zoomSelect.value = this.zoom;
+  }
+
+  updated(changedProperties) {
+    super.updated(changedProperties);
+
+    // Defer property synchronization to avoid "update during update" warning
+    // This ensures these calls happen after the current update cycle completes
+    Promise.resolve().then(() => {
+      if (changedProperties.has("src")) {
+      this.__srcChanged(this.src);
       }
-      this.__zoomChanged(this.zoom);
-    }
+      if (changedProperties.has("zoom")) {
+        const zoomSelect = this.querySelector("#zoom");
+        if (zoomSelect && zoomSelect.value !== this.zoom) {
+          zoomSelect.value = this.zoom;
+        }
+        this.__zoomChanged(this.zoom);
+      }
+    });    
   }
 
   __createToolbarButton() {
@@ -618,9 +635,11 @@ export class PdfViewerElement extends ResizeMixin(
     select.classList.add("toolbar-zoom");
     select.setAttribute("value", this.zoom);
     select.items = this.__zoomItems;
-    select.addEventListener("value-changed", (e) =>
-      this.__zoomChanged(e.detail.value),
-    );
+    select.addEventListener("value-changed", (e) => {
+      if (e.detail.value !== this.zoom) {
+        this.__zoomChanged(e.detail.value);
+      }
+    });
     if (this.hideZoom) {
       select.classList.add("hide-zoom");
     } else {
@@ -698,38 +717,48 @@ export class PdfViewerElement extends ResizeMixin(
 
     // options
     const eventBus = new pdfUtils.EventBus();
-    this.__linkService = new pdfjsLinkService.PDFLinkService({
-      eventBus,
+    
+    // Defer initialization of reactive controller properties to avoid immediate update request
+    // that triggers "update scheduled after update" warning.
+    Promise.resolve().then(() => {
+      this.__linkService = new pdfjsLinkService.PDFLinkService({
+        eventBus,
+      });
+      var pdfRenderingQueue = new pdfjsRenderingQueue.PDFRenderingQueue();
+      var l10n = NullL10n;
+
+      // pdfViewer
+      this.__viewer = new pdfjsViewer.PDFViewer({
+        container: this._viewerContainer,
+        textLayerMode: 2,
+        viewer: this._viewer,
+        eventBus: eventBus,
+        linkService: this.__linkService,
+        renderingQueue: pdfRenderingQueue,
+        l10n: l10n,
+        renderInteractiveForms: this.renderInteractiveForms,
+      });
+
+      this.__linkService.setViewer(this.__viewer);
+      pdfRenderingQueue.setViewer(this.__viewer);
+
+      // thumbnailViewer
+      this.__thumbnailViewer = new pdfjsThumbnailViewer.PDFThumbnailViewer({
+        container: this._thumbnailView,
+        eventBus: eventBus,
+        linkService: this.__linkService,
+        renderingQueue: pdfRenderingQueue,
+        l10n: l10n,
+      });
+
+      pdfRenderingQueue.setThumbnailViewer(this.__thumbnailViewer);
+      
+      // Initialize listeners after viewer creation
+      this.__initListeners(eventBus);
     });
-    var pdfRenderingQueue = new pdfjsRenderingQueue.PDFRenderingQueue();
-    var l10n = NullL10n;
+  }
 
-    // pdfViewer
-    this.__viewer = new pdfjsViewer.PDFViewer({
-      container: this._viewerContainer,
-      textLayerMode: 2,
-      viewer: this._viewer,
-      eventBus: eventBus,
-      linkService: this.__linkService,
-      renderingQueue: pdfRenderingQueue,
-      l10n: l10n,
-      renderInteractiveForms: this.renderInteractiveForms,
-    });
-
-    this.__linkService.setViewer(this.__viewer);
-    pdfRenderingQueue.setViewer(this.__viewer);
-
-    // thumbnailViewer
-    this.__thumbnailViewer = new pdfjsThumbnailViewer.PDFThumbnailViewer({
-      container: this._thumbnailView,
-      eventBus: eventBus,
-      linkService: this.__linkService,
-      renderingQueue: pdfRenderingQueue,
-      l10n: l10n,
-    });
-
-    pdfRenderingQueue.setThumbnailViewer(this.__thumbnailViewer);
-
+  __initListeners(eventBus) {
     // listeners
     eventBus.on("pagesinit", () => {
       this.__viewer.currentScaleValue = this.zoom;
@@ -743,7 +772,7 @@ export class PdfViewerElement extends ResizeMixin(
       this.__viewer.currentPage = this.setCurrentPage();
     });
     eventBus.on("pagechanging", (event) => {
-      this.__updateCurrentPageValue(event.pageNumber);
+      this.__updateCurrentPageValue(event.pageNumber);  
       this.__updatePageNumberStates();
       if (
         this.__thumbnailViewer &&
