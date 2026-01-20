@@ -535,6 +535,13 @@ export class PdfViewerElement extends ResizeMixin(
         }
         this.__zoomChanged(this.zoom);
       }
+      if (changedProperties.has("currentPage")) {
+        const currentPageInput = this.querySelector("#currentPage");
+        if (currentPageInput && currentPageInput.value !== this.currentPage) {
+          currentPageInput.value = this.currentPage;
+          this.__pageChange();
+        }
+      }
     });    
   }
 
@@ -780,7 +787,10 @@ export class PdfViewerElement extends ResizeMixin(
       ) {
         this.__thumbnailViewer.scrollThumbnailIntoView(this.currentPage);
       }
-      this.querySelector("#currentPage").value = this.currentPage;
+      const currentPageInput = this.querySelector("#currentPage");
+      if (currentPageInput) {
+        currentPageInput.value = this.currentPage;
+      }
     });
   }
 
@@ -922,11 +932,15 @@ export class PdfViewerElement extends ResizeMixin(
   }
 
   __pageChange(event) {
-    const currentPageValue = this.querySelector("#currentPage").value;
+     const currentPageInput = this.querySelector("#currentPage");
+    if (!currentPageInput) {
+      return; // Component not yet rendered, skip
+    }
+    const currentPageValue = currentPageInput.value;
     let pageNumber = parseInt(currentPageValue, 10);
     if (isNaN(pageNumber)) {
       pageNumber = this.__viewer.currentPageNumber;
-      this.querySelector("#currentPage").value = "" + pageNumber;
+      currentPageInput.value = "" + pageNumber;
     }
     if (pageNumber < 1) {
       pageNumber = 1;
@@ -939,7 +953,7 @@ export class PdfViewerElement extends ResizeMixin(
 
   setCurrentPage(value) {
     if (value != undefined) {
-      this.querySelector("#currentPage").value = "" + value;
+      this.currentPage = "" + value;
     }
     this.__pageChange();
   }
