@@ -66,6 +66,31 @@
         <vcf-pdf-viewer id="programmaticZoomViewer" src="pdf-files/example-invoice.pdf"></vcf-pdf-viewer>
     </div>
 
+    <div id="pdf-viewer-set-current-page">
+        <h3>Set Current Page Programmatically</h3>
+        <p>Use the buttons below to navigate to specific pages in the PDF using the <code>setCurrentPage()</code> method.</p>
+        <div style="margin-bottom: 10px;">
+            <button onclick="document.querySelector('#setCurrentPageViewer').setCurrentPage(1)">Go to Page 1</button>
+            <button onclick="document.querySelector('#setCurrentPageViewer').setCurrentPage(2)">Go to Page 2</button>
+            <button onclick="document.querySelector('#setCurrentPageViewer').setCurrentPage(3)">Go to Page 3</button>
+            <button onclick="document.querySelector('#setCurrentPageViewer').setCurrentPage(5)">Go to Page 5</button>
+        </div>
+        <div style="margin-bottom: 10px;">
+            <label>Jump to page:
+                <input type="number" id="pageInput" min="1" value="1" style="width: 60px;">
+                <button onclick="const pageNum = parseInt(document.querySelector('#pageInput').value); document.querySelector('#setCurrentPageViewer').setCurrentPage(pageNum);">Go</button>
+            </label>
+        </div>
+        <vcf-pdf-viewer id="setCurrentPageViewer" src="pdf-files/bitcoin.pdf"></vcf-pdf-viewer>
+        <div id="currentPageDisplay" style="margin-top: 10px;"></div>
+        <script>
+            const setPageViewer = document.querySelector('#setCurrentPageViewer');
+            setPageViewer.addEventListener('page-changed', function (e) {
+                document.querySelector('#currentPageDisplay').innerHTML = 'Current Page: ' + e.detail.pageNumber;
+            });
+        </script>
+    </div>
+    
     <div>
         <h3>Try to Load a File That Can't Be Found</h3>
         <vcf-pdf-viewer src="pdf-files/non-existing-file.pdf"></vcf-pdf-viewer>
