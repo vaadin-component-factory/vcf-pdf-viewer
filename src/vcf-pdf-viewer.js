@@ -356,7 +356,7 @@ export class PdfViewerElement extends ResizeMixin(
   }
 
   static get version() {
-    return "4.0.1";
+    return "4.0.2";
   }
 
   static get properties() {
