@@ -19,6 +19,14 @@ This component is part of Vaadin Component Factory.
 
 1. Run `npm start` to open the demo.
 
+## Development & publishing
+
+DO NOT run `npm run build` before publishing a new release.
+
+The `pdfjs/dist` files committed in this repository are manually edited to ensure correct module resolution. Running the build script will overwrite these files, generating incompatible file paths that will cause the component to fail when trying to resolve dependencies.
+
+Only run `npm run build` if you are intentionally modifying the `pdfjs` dependency and are prepared to manually fix the resulting path references.
+
 ## Contributing
 
 To contribute to the component, please read [the guideline](https://github.com/vaadin/vaadin-core/blob/master/CONTRIBUTING.md) first.
