@@ -1,6 +1,6 @@
 {
   "name": "@vaadin-component-factory/vcf-pdf-viewer",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "description": "Lit element providing pdf viewer",
   "author": "Vaadin Ltd",
   "license": "Apache-2.0",
