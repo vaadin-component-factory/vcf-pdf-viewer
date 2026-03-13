@@ -14,13 +14,17 @@
  */
 
 import {
+  AnnotationEditorPrefix,
   assert,
   BaseException,
   objectSize,
   stringToPDFString,
   warn,
-} from "../shared/util";
-import { Dict, isName, isRef, isStream, RefSet } from "./primitives.js";
+} from "../shared/util.js";
+import { Dict, isName, Ref, RefSet } from "./primitives.js";
+import { BaseStream } from "./base_stream.js";
+
+const PDF_VERSION_REGEXP = /^[1-9]\.\d$/;
 
 function getLookupTableFactory(initializer) {
   let lookup;
@@ -34,35 +38,66 @@ function getLookupTableFactory(initializer) {
   };
 }
 
-function getArrayLookupTableFactory(initializer) {
-  let lookup;
-  return function () {
-    if (initializer) {
-      let arr = initializer();
-      initializer = null;
-      lookup = Object.create(null);
-      for (let i = 0, ii = arr.length; i < ii; i += 2) {
-        lookup[arr[i]] = arr[i + 1];
-      }
-      arr = null;
-    }
-    return lookup;
-  };
-}
-
 class MissingDataException extends BaseException {
   constructor(begin, end) {
-    super(`Missing data [${begin}, ${end})`);
+    super(`Missing data [${begin}, ${end})`, "MissingDataException");
     this.begin = begin;
     this.end = end;
   }
 }
 
-class ParserEOFException extends BaseException {}
+class ParserEOFException extends BaseException {
+  constructor(msg) {
+    super(msg, "ParserEOFException");
+  }
+}
 
-class XRefEntryException extends BaseException {}
+class XRefEntryException extends BaseException {
+  constructor(msg) {
+    super(msg, "XRefEntryException");
+  }
+}
 
-class XRefParseException extends BaseException {}
+class XRefParseException extends BaseException {
+  constructor(msg) {
+    super(msg, "XRefParseException");
+  }
+}
+
+/**
+ * Combines multiple ArrayBuffers into a single Uint8Array.
+ * @param {Array<ArrayBuffer>} arr - An array of ArrayBuffers.
+ * @returns {Uint8Array}
+ */
+function arrayBuffersToBytes(arr) {
+  if (typeof PDFJSDev === "undefined" || PDFJSDev.test("TESTING")) {
+    for (const item of arr) {
+      assert(
+        item instanceof ArrayBuffer,
+        "arrayBuffersToBytes - expected an ArrayBuffer."
+      );
+    }
+  }
+  const length = arr.length;
+  if (length === 0) {
+    return new Uint8Array(0);
+  }
+  if (length === 1) {
+    return new Uint8Array(arr[0]);
+  }
+  let dataLength = 0;
+  for (let i = 0; i < length; i++) {
+    dataLength += arr[i].byteLength;
+  }
+  const data = new Uint8Array(dataLength);
+  let pos = 0;
+  for (let i = 0; i < length; i++) {
+    const item = new Uint8Array(arr[i]);
+    data.set(item, pos);
+    pos += item.byteLength;
+  }
+  return data;
+}
 
 /**
  * Get the value of an inheritable property.
@@ -102,10 +137,7 @@ function getInheritableProperty({
       if (stopWhenFound) {
         return value;
       }
-      if (!values) {
-        values = [];
-      }
-      values.push(value);
+      (values ||= []).push(value);
     }
     dict = dict.get("Parent");
   }
@@ -187,6 +219,21 @@ function isWhiteSpace(ch) {
 }
 
 /**
+ * Checks if something is an Array containing only numbers,
+ * and (optionally) checks its length.
+ * @param {any} arr
+ * @param {number | null} len
+ * @returns {boolean}
+ */
+function isNumberArray(arr, len) {
+  return (
+    Array.isArray(arr) &&
+    (len === null || arr.length === len) &&
+    arr.every(x => typeof x === "number")
+  );
+}
+
+/**
  * AcroForm field names use an array like notation to refer to
  * repeated XFA elements e.g. foo.bar[nnn].
  * see: XFA Spec Chapter 3 - Repeated Elements
@@ -196,7 +243,7 @@ function isWhiteSpace(ch) {
  * each part of the path.
  */
 function parseXFAPath(path) {
-  const positionPattern = /(.+)\[([0-9]+)\]$/;
+  const positionPattern = /(.+)\[(\d+)\]$/;
   return path.split(".").map(component => {
     const m = component.match(positionPattern);
     if (m) {
@@ -246,13 +293,26 @@ function escapePDFName(str) {
   return buffer.join("");
 }
 
+// Replace "(", ")", "\n", "\r" and "\" by "\(", "\)", "\\n", "\\r" and "\\"
+// in order to write it in a PDF file.
+function escapeString(str) {
+  return str.replaceAll(/([()\\\n\r])/g, match => {
+    if (match === "\n") {
+      return "\\n";
+    } else if (match === "\r") {
+      return "\\r";
+    }
+    return `\\${match}`;
+  });
+}
+
 function _collectJS(entry, xref, list, parents) {
   if (!entry) {
     return;
   }
 
   let parent = null;
-  if (isRef(entry)) {
+  if (entry instanceof Ref) {
     if (parents.has(entry)) {
       // If we've already found entry then we've a cycle.
       return;
@@ -266,15 +326,15 @@ function _collectJS(entry, xref, list, parents) {
       _collectJS(element, xref, list, parents);
     }
   } else if (entry instanceof Dict) {
-    if (isName(entry.get("S"), "JavaScript") && entry.has("JS")) {
+    if (isName(entry.get("S"), "JavaScript")) {
       const js = entry.get("JS");
       let code;
-      if (isStream(js)) {
+      if (js instanceof BaseStream) {
         code = js.getString();
-      } else {
+      } else if (typeof js === "string") {
         code = js;
       }
-      code = stringToPDFString(code);
+      code &&= stringToPDFString(code).replaceAll("\x00", "");
       if (code) {
         list.push(code);
       }
@@ -341,6 +401,17 @@ const XMLEntities = {
   /* ' */ 0x27: "&apos;",
 };
 
+function* codePointIter(str) {
+  for (let i = 0, ii = str.length; i < ii; i++) {
+    const char = str.codePointAt(i);
+    if (char > 0xd7ff && (char < 0xe000 || char > 0xfffd)) {
+      // char is represented by two u16
+      i++;
+    }
+    yield char;
+  }
+}
+
 function encodeToXmlString(str) {
   const buffer = [];
   let start = 0;
@@ -378,6 +449,31 @@ function encodeToXmlString(str) {
   return buffer.join("");
 }
 
+function validateFontName(fontFamily, mustWarn = false) {
+  // See https://developer.mozilla.org/en-US/docs/Web/CSS/string.
+  const m = /^("|').*("|')$/.exec(fontFamily);
+  if (m && m[1] === m[2]) {
+    const re = new RegExp(`[^\\\\]${m[1]}`);
+    if (re.test(fontFamily.slice(1, -1))) {
+      if (mustWarn) {
+        warn(`FontFamily contains unescaped ${m[1]}: ${fontFamily}.`);
+      }
+      return false;
+    }
+  } else {
+    // See https://developer.mozilla.org/en-US/docs/Web/CSS/custom-ident.
+    for (const ident of fontFamily.split(/[ \t]+/)) {
+      if (/^(\d|(-(\d|-)))/.test(ident) || !/^[\w-\\]+$/.test(ident)) {
+        if (mustWarn) {
+          warn(`FontFamily contains invalid <custom-ident>: ${fontFamily}.`);
+        }
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 function validateCSSFont(cssFontInfo) {
   // See https://developer.mozilla.org/en-US/docs/Web/CSS/font-style.
   const DEFAULT_CSS_FONT_OBLIQUE = "14";
@@ -402,30 +498,8 @@ function validateCSSFont(cssFontInfo) {
 
   const { fontFamily, fontWeight, italicAngle } = cssFontInfo;
 
-  // See https://developer.mozilla.org/en-US/docs/Web/CSS/string.
-  if (/^".*"$/.test(fontFamily)) {
-    if (/[^\\]"/.test(fontFamily.slice(1, fontFamily.length - 1))) {
-      warn(`XFA - FontFamily contains some unescaped ": ${fontFamily}.`);
-      return false;
-    }
-  } else if (/^'.*'$/.test(fontFamily)) {
-    if (/[^\\]'/.test(fontFamily.slice(1, fontFamily.length - 1))) {
-      warn(`XFA - FontFamily contains some unescaped ': ${fontFamily}.`);
-      return false;
-    }
-  } else {
-    // See https://developer.mozilla.org/en-US/docs/Web/CSS/custom-ident.
-    for (const ident of fontFamily.split(/[ \t]+/)) {
-      if (
-        /^([0-9]|(-([0-9]|-)))/.test(ident) ||
-        !/^[a-zA-Z0-9\-_\\]+$/.test(ident)
-      ) {
-        warn(
-          `XFA - FontFamily contains some invalid <custom-ident>: ${fontFamily}.`
-        );
-        return false;
-      }
-    }
+  if (!validateFontName(fontFamily, true)) {
+    return false;
   }
 
   const weight = fontWeight ? fontWeight.toString() : "";
@@ -442,23 +516,159 @@ function validateCSSFont(cssFontInfo) {
   return true;
 }
 
+function recoverJsURL(str) {
+  // Attempt to recover valid URLs from `JS` entries with certain
+  // white-listed formats:
+  //  - window.open('http://example.com')
+  //  - app.launchURL('http://example.com', true)
+  //  - xfa.host.gotoURL('http://example.com')
+  const URL_OPEN_METHODS = ["app.launchURL", "window.open", "xfa.host.gotoURL"];
+  const regex = new RegExp(
+    "^\\s*(" +
+      URL_OPEN_METHODS.join("|").replaceAll(".", "\\.") +
+      ")\\((?:'|\")([^'\"]*)(?:'|\")(?:,\\s*(\\w+)\\)|\\))",
+    "i"
+  );
+
+  const jsUrl = regex.exec(str);
+  if (jsUrl?.[2]) {
+    const url = jsUrl[2];
+    let newWindow = false;
+
+    if (jsUrl[3] === "true" && jsUrl[1] === "app.launchURL") {
+      newWindow = true;
+    }
+    return { url, newWindow };
+  }
+
+  return null;
+}
+
+function numberToString(value) {
+  if (Number.isInteger(value)) {
+    return value.toString();
+  }
+
+  const roundedValue = Math.round(value * 100);
+  if (roundedValue % 100 === 0) {
+    return (roundedValue / 100).toString();
+  }
+
+  if (roundedValue % 10 === 0) {
+    return value.toFixed(1);
+  }
+
+  return value.toFixed(2);
+}
+
+function getNewAnnotationsMap(annotationStorage) {
+  if (!annotationStorage) {
+    return null;
+  }
+  const newAnnotationsByPage = new Map();
+  // The concept of page in a XFA is very different, so
+  // editing is just not implemented.
+  for (const [key, value] of annotationStorage) {
+    if (!key.startsWith(AnnotationEditorPrefix)) {
+      continue;
+    }
+    let annotations = newAnnotationsByPage.get(value.pageIndex);
+    if (!annotations) {
+      annotations = [];
+      newAnnotationsByPage.set(value.pageIndex, annotations);
+    }
+    annotations.push(value);
+  }
+  return newAnnotationsByPage.size > 0 ? newAnnotationsByPage : null;
+}
+
+function isAscii(str) {
+  return /^[\x00-\x7F]*$/.test(str);
+}
+
+function stringToUTF16HexString(str) {
+  const buf = [];
+  for (let i = 0, ii = str.length; i < ii; i++) {
+    const char = str.charCodeAt(i);
+    buf.push(
+      ((char >> 8) & 0xff).toString(16).padStart(2, "0"),
+      (char & 0xff).toString(16).padStart(2, "0")
+    );
+  }
+  return buf.join("");
+}
+
+function stringToUTF16String(str, bigEndian = false) {
+  const buf = [];
+  if (bigEndian) {
+    buf.push("\xFE\xFF");
+  }
+  for (let i = 0, ii = str.length; i < ii; i++) {
+    const char = str.charCodeAt(i);
+    buf.push(
+      String.fromCharCode((char >> 8) & 0xff),
+      String.fromCharCode(char & 0xff)
+    );
+  }
+  return buf.join("");
+}
+
+function getRotationMatrix(rotation, width, height) {
+  switch (rotation) {
+    case 90:
+      return [0, 1, -1, 0, width, 0];
+    case 180:
+      return [-1, 0, 0, -1, width, height];
+    case 270:
+      return [0, -1, 1, 0, 0, height];
+    default:
+      throw new Error("Invalid rotation");
+  }
+}
+
+/**
+ * Get the number of bytes to use to represent the given positive integer.
+ * If n is zero, the function returns 0 which means that we don't need to waste
+ * a byte to represent it.
+ * @param {number} x - a positive integer.
+ * @returns {number}
+ */
+function getSizeInBytes(x) {
+  // n bits are required for numbers up to 2^n - 1.
+  // So for a number x, we need ceil(log2(1 + x)) bits.
+  return Math.ceil(Math.ceil(Math.log2(1 + x)) / 8);
+}
+
 export {
+  arrayBuffersToBytes,
+  codePointIter,
   collectActions,
   encodeToXmlString,
   escapePDFName,
-  getArrayLookupTableFactory,
+  escapeString,
   getInheritableProperty,
   getLookupTableFactory,
+  getNewAnnotationsMap,
+  getRotationMatrix,
+  getSizeInBytes,
+  isAscii,
+  isNumberArray,
   isWhiteSpace,
   log2,
   MissingDataException,
+  numberToString,
   ParserEOFException,
   parseXFAPath,
+  PDF_VERSION_REGEXP,
   readInt8,
   readUint16,
   readUint32,
+  recoverJsURL,
+  stringToUTF16HexString,
+  stringToUTF16String,
   toRomanNumerals,
   validateCSSFont,
+  validateFontName,
   XRefEntryException,
   XRefParseException,
 };

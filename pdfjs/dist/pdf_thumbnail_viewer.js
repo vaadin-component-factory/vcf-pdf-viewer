@@ -1,7 +1,6 @@
-import { getOutputScale, watchScroll, getVisibleElements, scrollIntoView, isValidRotation } from './ui_utils.js';
+import { RenderingStates, OutputScale, watchScroll, getVisibleElements, scrollIntoView, isValidRotation } from './ui_utils.js';
 import './pdf.js';
-import { RenderingStates } from './pdf_rendering_queue.js';
-import { R as RenderingCancelledException } from './display_utils.js';
+import { R as RenderingCancelledException } from './node_stream2.js';
 import './util.js';
 import './message_handler.js';
 
@@ -19,16 +18,15 @@ import './message_handler.js';
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 const DRAW_UPSCALE_FACTOR = 2; // See comment in `PDFThumbnailView.draw` below.
-
 const MAX_NUM_SCALING_STEPS = 3;
-const THUMBNAIL_CANVAS_BORDER_WIDTH = 1; // px
-
 const THUMBNAIL_WIDTH = 98; // px
 
 /**
  * @typedef {Object} PDFThumbnailViewOptions
  * @property {HTMLDivElement} container - The viewer element.
+ * @property {EventBus} eventBus - The application event bus.
  * @property {number} id - The thumbnail's unique ID (normally its number).
  * @property {PageViewport} defaultViewport - The page viewport.
  * @property {Promise<OptionalContentConfig>} [optionalContentConfigPromise] -
@@ -36,72 +34,57 @@ const THUMBNAIL_WIDTH = 98; // px
  *   The default value is `null`.
  * @property {IPDFLinkService} linkService - The navigation/linking service.
  * @property {PDFRenderingQueue} renderingQueue - The rendering queue object.
- * @property {function} checkSetImageDisabled
- * @property {IL10n} l10n - Localization service.
+ * @property {Object} [pageColors] - Overwrites background and foreground colors
+ *   with user defined ones in order to improve readability in high contrast
+ *   mode.
  */
 
-const TempImageFactory = function TempImageFactoryClosure() {
-  let tempCanvasCache = null;
-  return {
-    getCanvas(width, height) {
-      let tempCanvas = tempCanvasCache;
+class TempImageFactory {
+  static #tempCanvas = null;
+  static getCanvas(width, height) {
+    const tempCanvas = this.#tempCanvas || (this.#tempCanvas = document.createElement("canvas"));
+    tempCanvas.width = width;
+    tempCanvas.height = height;
 
-      if (!tempCanvas) {
-        tempCanvas = document.createElement("canvas");
-        tempCanvasCache = tempCanvas;
-      }
-
-      tempCanvas.width = width;
-      tempCanvas.height = height; // Since this is a temporary canvas, we need to fill it with a white
-      // background ourselves. `_getPageDrawContext` uses CSS rules for this.
-
-      if (typeof PDFJSDev === "undefined" || PDFJSDev.test("MOZCENTRAL || GENERIC")) {
-        tempCanvas.mozOpaque = true;
-      }
-
-      const ctx = tempCanvas.getContext("2d", {
-        alpha: false
-      });
-      ctx.save();
-      ctx.fillStyle = "rgb(255, 255, 255)";
-      ctx.fillRect(0, 0, width, height);
-      ctx.restore();
-      return [tempCanvas, tempCanvas.getContext("2d")];
-    },
-
-    destroyCanvas() {
-      const tempCanvas = tempCanvasCache;
-
-      if (tempCanvas) {
-        // Zeroing the width and height causes Firefox to release graphics
-        // resources immediately, which can greatly reduce memory consumption.
-        tempCanvas.width = 0;
-        tempCanvas.height = 0;
-      }
-
-      tempCanvasCache = null;
+    // Since this is a temporary canvas, we need to fill it with a white
+    // background ourselves. `#getPageDrawContext` uses CSS rules for this.
+    const ctx = tempCanvas.getContext("2d", {
+      alpha: false
+    });
+    ctx.save();
+    ctx.fillStyle = "rgb(255, 255, 255)";
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+    return [tempCanvas, tempCanvas.getContext("2d")];
+  }
+  static destroyCanvas() {
+    const tempCanvas = this.#tempCanvas;
+    if (tempCanvas) {
+      // Zeroing the width and height causes Firefox to release graphics
+      // resources immediately, which can greatly reduce memory consumption.
+      tempCanvas.width = 0;
+      tempCanvas.height = 0;
     }
+    this.#tempCanvas = null;
+  }
+}
 
-  };
-}();
 /**
  * @implements {IRenderableView}
  */
-
-
 class PDFThumbnailView {
   /**
    * @param {PDFThumbnailViewOptions} options
    */
   constructor({
     container,
+    eventBus,
     id,
     defaultViewport,
     optionalContentConfigPromise,
     linkService,
     renderingQueue,
-    checkSetImageDisabled,
-    l10n
+    pageColors
   }) {
     this.id = id;
     this.renderingId = "thumbnail" + id;
@@ -111,51 +94,49 @@ class PDFThumbnailView {
     this.viewport = defaultViewport;
     this.pdfPageRotate = defaultViewport.rotation;
     this._optionalContentConfigPromise = optionalContentConfigPromise || null;
+    this.pageColors = pageColors || null;
+    this.eventBus = eventBus;
     this.linkService = linkService;
     this.renderingQueue = renderingQueue;
     this.renderTask = null;
     this.renderingState = RenderingStates.INITIAL;
     this.resume = null;
-
-    this._checkSetImageDisabled = checkSetImageDisabled || function () {
-      return false;
-    };
-
-    const pageWidth = this.viewport.width,
-          pageHeight = this.viewport.height,
-          pageRatio = pageWidth / pageHeight;
-    this.canvasWidth = THUMBNAIL_WIDTH;
-    this.canvasHeight = this.canvasWidth / pageRatio | 0;
-    this.scale = this.canvasWidth / pageWidth;
-    this.l10n = l10n;
     const anchor = document.createElement("a");
     anchor.href = linkService.getAnchorUrl("#page=" + id);
-
-    this._thumbPageTitle.then(msg => {
-      anchor.title = msg;
-    });
-
+    anchor.setAttribute("data-l10n-id", "pdfjs-thumb-page-title");
+    anchor.setAttribute("data-l10n-args", this.#pageL10nArgs);
     anchor.onclick = function () {
       linkService.goToPage(id);
       return false;
     };
-
     this.anchor = anchor;
     const div = document.createElement("div");
     div.className = "thumbnail";
     div.setAttribute("data-page-number", this.id);
     this.div = div;
-    const ring = document.createElement("div");
-    ring.className = "thumbnailSelectionRing";
-    const borderAdjustment = 2 * THUMBNAIL_CANVAS_BORDER_WIDTH;
-    ring.style.width = this.canvasWidth + borderAdjustment + "px";
-    ring.style.height = this.canvasHeight + borderAdjustment + "px";
-    this.ring = ring;
-    div.appendChild(ring);
-    anchor.appendChild(div);
-    container.appendChild(anchor);
+    this.#updateDims();
+    const img = document.createElement("div");
+    img.className = "thumbnailImage";
+    this._placeholderImg = img;
+    div.append(img);
+    anchor.append(div);
+    container.append(anchor);
   }
-
+  #updateDims() {
+    const {
+      width,
+      height
+    } = this.viewport;
+    const ratio = width / height;
+    this.canvasWidth = THUMBNAIL_WIDTH;
+    this.canvasHeight = this.canvasWidth / ratio | 0;
+    this.scale = this.canvasWidth / width;
+    const {
+      style
+    } = this.div;
+    style.setProperty("--thumbnail-width", `${this.canvasWidth}px`);
+    style.setProperty("--thumbnail-height", `${this.canvasHeight}px`);
+  }
   setPdfPage(pdfPage) {
     this.pdfPage = pdfPage;
     this.pdfPageRotate = pdfPage.rotate;
@@ -166,42 +147,24 @@ class PDFThumbnailView {
     });
     this.reset();
   }
-
   reset() {
+    var _this$image;
     this.cancelRendering();
     this.renderingState = RenderingStates.INITIAL;
-    const pageWidth = this.viewport.width,
-          pageHeight = this.viewport.height,
-          pageRatio = pageWidth / pageHeight;
-    this.canvasHeight = this.canvasWidth / pageRatio | 0;
-    this.scale = this.canvasWidth / pageWidth;
     this.div.removeAttribute("data-loaded");
-    const ring = this.ring;
-    ring.textContent = ""; // Remove the thumbnail from the DOM.
-
-    const borderAdjustment = 2 * THUMBNAIL_CANVAS_BORDER_WIDTH;
-    ring.style.width = this.canvasWidth + borderAdjustment + "px";
-    ring.style.height = this.canvasHeight + borderAdjustment + "px";
-
-    if (this.canvas) {
-      // Zeroing the width and height causes Firefox to release graphics
-      // resources immediately, which can greatly reduce memory consumption.
-      this.canvas.width = 0;
-      this.canvas.height = 0;
-      delete this.canvas;
-    }
-
+    (_this$image = this.image) === null || _this$image === void 0 ? void 0 : _this$image.replaceWith(this._placeholderImg);
+    this.#updateDims();
     if (this.image) {
       this.image.removeAttribute("src");
       delete this.image;
     }
   }
-
-  update(rotation) {
-    if (typeof rotation !== "undefined") {
-      this.rotation = rotation;
+  update({
+    rotation = null
+  }) {
+    if (typeof rotation === "number") {
+      this.rotation = rotation; // The rotation may be zero.
     }
-
     const totalRotation = (this.rotation + this.pdfPageRotate) % 360;
     this.viewport = this.viewport.clone({
       scale: 1,
@@ -209,38 +172,26 @@ class PDFThumbnailView {
     });
     this.reset();
   }
+
   /**
    * PLEASE NOTE: Most likely you want to use the `this.reset()` method,
    *              rather than calling this one directly.
    */
-
-
   cancelRendering() {
     if (this.renderTask) {
       this.renderTask.cancel();
       this.renderTask = null;
     }
-
     this.resume = null;
   }
-  /**
-   * @private
-   */
-
-
-  _getPageDrawContext(upscaleFactor = 1) {
+  #getPageDrawContext(upscaleFactor = 1) {
     // Keep the no-thumbnail outline visible, i.e. `data-loaded === false`,
     // until rendering/image conversion is complete, to avoid display issues.
     const canvas = document.createElement("canvas");
-
-    if (typeof PDFJSDev === "undefined" || PDFJSDev.test("MOZCENTRAL || GENERIC")) {
-      canvas.mozOpaque = true;
-    }
-
     const ctx = canvas.getContext("2d", {
       alpha: false
     });
-    const outputScale = getOutputScale(ctx);
+    const outputScale = new OutputScale();
     canvas.width = upscaleFactor * this.canvasWidth * outputScale.sx | 0;
     canvas.height = upscaleFactor * this.canvasHeight * outputScale.sy | 0;
     const transform = outputScale.scaled ? [outputScale.sx, 0, 0, outputScale.sy, 0, 0] : null;
@@ -250,238 +201,169 @@ class PDFThumbnailView {
       transform
     };
   }
-  /**
-   * @private
-   */
-
-
-  _convertCanvasToImage(canvas) {
+  #convertCanvasToImage(canvas) {
     if (this.renderingState !== RenderingStates.FINISHED) {
-      throw new Error("_convertCanvasToImage: Rendering has not finished.");
+      throw new Error("#convertCanvasToImage: Rendering has not finished.");
     }
-
-    const reducedCanvas = this._reduceImage(canvas);
-
+    const reducedCanvas = this.#reduceImage(canvas);
     const image = document.createElement("img");
     image.className = "thumbnailImage";
-
-    this._thumbPageCanvas.then(msg => {
-      image.setAttribute("aria-label", msg);
-    });
-
-    image.style.width = this.canvasWidth + "px";
-    image.style.height = this.canvasHeight + "px";
+    image.setAttribute("data-l10n-id", "pdfjs-thumb-page-canvas");
+    image.setAttribute("data-l10n-args", this.#pageL10nArgs);
     image.src = reducedCanvas.toDataURL();
     this.image = image;
     this.div.setAttribute("data-loaded", true);
-    this.ring.appendChild(image); // Zeroing the width and height causes Firefox to release graphics
-    // resources immediately, which can greatly reduce memory consumption.
+    this._placeholderImg.replaceWith(image);
 
+    // Zeroing the width and height causes Firefox to release graphics
+    // resources immediately, which can greatly reduce memory consumption.
     reducedCanvas.width = 0;
     reducedCanvas.height = 0;
   }
-
-  draw() {
+  async #finishRenderTask(renderTask, canvas, error = null) {
+    // The renderTask may have been replaced by a new one, so only remove
+    // the reference to the renderTask if it matches the one that is
+    // triggering this callback.
+    if (renderTask === this.renderTask) {
+      this.renderTask = null;
+    }
+    if (error instanceof RenderingCancelledException) {
+      return;
+    }
+    this.renderingState = RenderingStates.FINISHED;
+    this.#convertCanvasToImage(canvas);
+    if (error) {
+      throw error;
+    }
+  }
+  async draw() {
     if (this.renderingState !== RenderingStates.INITIAL) {
       console.error("Must be in new state before drawing");
-      return Promise.resolve(undefined);
+      return undefined;
     }
-
     const {
       pdfPage
     } = this;
-
     if (!pdfPage) {
       this.renderingState = RenderingStates.FINISHED;
-      return Promise.reject(new Error("pdfPage is not loaded"));
+      throw new Error("pdfPage is not loaded");
     }
-
     this.renderingState = RenderingStates.RUNNING;
 
-    const finishRenderTask = async (error = null) => {
-      // The renderTask may have been replaced by a new one, so only remove
-      // the reference to the renderTask if it matches the one that is
-      // triggering this callback.
-      if (renderTask === this.renderTask) {
-        this.renderTask = null;
-      }
-
-      if (error instanceof RenderingCancelledException) {
-        return;
-      }
-
-      this.renderingState = RenderingStates.FINISHED;
-
-      this._convertCanvasToImage(canvas);
-
-      if (error) {
-        throw error;
-      }
-    }; // Render the thumbnail at a larger size and downsize the canvas (similar
+    // Render the thumbnail at a larger size and downsize the canvas (similar
     // to `setImage`), to improve consistency between thumbnails created by
     // the `draw` and `setImage` methods (fixes issue 8233).
     // NOTE: To primarily avoid increasing memory usage too much, but also to
     //   reduce downsizing overhead, we purposely limit the up-scaling factor.
-
-
     const {
       ctx,
       canvas,
       transform
-    } = this._getPageDrawContext(DRAW_UPSCALE_FACTOR);
-
+    } = this.#getPageDrawContext(DRAW_UPSCALE_FACTOR);
     const drawViewport = this.viewport.clone({
       scale: DRAW_UPSCALE_FACTOR * this.scale
     });
-
     const renderContinueCallback = cont => {
       if (!this.renderingQueue.isHighestPriority(this)) {
         this.renderingState = RenderingStates.PAUSED;
-
         this.resume = () => {
           this.renderingState = RenderingStates.RUNNING;
           cont();
         };
-
         return;
       }
-
       cont();
     };
-
     const renderContext = {
       canvasContext: ctx,
       transform,
       viewport: drawViewport,
-      optionalContentConfigPromise: this._optionalContentConfigPromise
+      optionalContentConfigPromise: this._optionalContentConfigPromise,
+      pageColors: this.pageColors
     };
     const renderTask = this.renderTask = pdfPage.render(renderContext);
     renderTask.onContinue = renderContinueCallback;
-    const resultPromise = renderTask.promise.then(function () {
-      return finishRenderTask(null);
-    }, function (error) {
-      return finishRenderTask(error);
-    });
+    const resultPromise = renderTask.promise.then(() => this.#finishRenderTask(renderTask, canvas), error => this.#finishRenderTask(renderTask, canvas, error));
     resultPromise.finally(() => {
       // Zeroing the width and height causes Firefox to release graphics
       // resources immediately, which can greatly reduce memory consumption.
       canvas.width = 0;
-      canvas.height = 0; // Only trigger cleanup, once rendering has finished, when the current
-      // pageView is *not* cached on the `BaseViewer`-instance.
-
-      const pageCached = this.linkService.isPageCached(this.id);
-
-      if (!pageCached) {
-        var _this$pdfPage;
-
-        (_this$pdfPage = this.pdfPage) === null || _this$pdfPage === void 0 ? void 0 : _this$pdfPage.cleanup();
-      }
+      canvas.height = 0;
+      this.eventBus.dispatch("thumbnailrendered", {
+        source: this,
+        pageNumber: this.id,
+        pdfPage: this.pdfPage
+      });
     });
     return resultPromise;
   }
-
   setImage(pageView) {
-    if (this._checkSetImageDisabled()) {
-      return;
-    }
-
     if (this.renderingState !== RenderingStates.INITIAL) {
       return;
     }
-
     const {
-      canvas,
-      pdfPage
+      thumbnailCanvas: canvas,
+      pdfPage,
+      scale
     } = pageView;
-
     if (!canvas) {
       return;
     }
-
     if (!this.pdfPage) {
       this.setPdfPage(pdfPage);
     }
-
+    if (scale < this.scale) {
+      // Avoid upscaling the image, since that makes the thumbnail look blurry.
+      return;
+    }
     this.renderingState = RenderingStates.FINISHED;
-
-    this._convertCanvasToImage(canvas);
+    this.#convertCanvasToImage(canvas);
   }
-  /**
-   * @private
-   */
-
-
-  _reduceImage(img) {
+  #reduceImage(img) {
     const {
       ctx,
       canvas
-    } = this._getPageDrawContext();
-
+    } = this.#getPageDrawContext();
     if (img.width <= 2 * canvas.width) {
       ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
       return canvas;
-    } // drawImage does an awful job of rescaling the image, doing it gradually.
-
-
+    }
+    // drawImage does an awful job of rescaling the image, doing it gradually.
     let reducedWidth = canvas.width << MAX_NUM_SCALING_STEPS;
     let reducedHeight = canvas.height << MAX_NUM_SCALING_STEPS;
     const [reducedImage, reducedImageCtx] = TempImageFactory.getCanvas(reducedWidth, reducedHeight);
-
     while (reducedWidth > img.width || reducedHeight > img.height) {
       reducedWidth >>= 1;
       reducedHeight >>= 1;
     }
-
     reducedImageCtx.drawImage(img, 0, 0, img.width, img.height, 0, 0, reducedWidth, reducedHeight);
-
     while (reducedWidth > 2 * canvas.width) {
       reducedImageCtx.drawImage(reducedImage, 0, 0, reducedWidth, reducedHeight, 0, 0, reducedWidth >> 1, reducedHeight >> 1);
       reducedWidth >>= 1;
       reducedHeight >>= 1;
     }
-
     ctx.drawImage(reducedImage, 0, 0, reducedWidth, reducedHeight, 0, 0, canvas.width, canvas.height);
     return canvas;
   }
-
-  get _thumbPageTitle() {
+  get #pageL10nArgs() {
     var _this$pageLabel;
-
-    return this.l10n.get("thumb_page_title", {
+    return JSON.stringify({
       page: (_this$pageLabel = this.pageLabel) !== null && _this$pageLabel !== void 0 ? _this$pageLabel : this.id
     });
   }
 
-  get _thumbPageCanvas() {
-    var _this$pageLabel2;
-
-    return this.l10n.get("thumb_page_canvas", {
-      page: (_this$pageLabel2 = this.pageLabel) !== null && _this$pageLabel2 !== void 0 ? _this$pageLabel2 : this.id
-    });
-  }
   /**
    * @param {string|null} label
    */
-
-
   setPageLabel(label) {
+    var _this$image2;
     this.pageLabel = typeof label === "string" ? label : null;
-
-    this._thumbPageTitle.then(msg => {
-      this.anchor.title = msg;
-    });
-
+    this.anchor.setAttribute("data-l10n-args", this.#pageL10nArgs);
     if (this.renderingState !== RenderingStates.FINISHED) {
       return;
     }
-
-    this._thumbPageCanvas.then(msg => {
-      var _this$image;
-
-      (_this$image = this.image) === null || _this$image === void 0 ? void 0 : _this$image.setAttribute("aria-label", msg);
-    });
+    (_this$image2 = this.image) === null || _this$image2 === void 0 ? void 0 : _this$image2.setAttribute("data-l10n-args", this.#pageL10nArgs);
   }
-
 }
 
 /* Copyright 2012 Mozilla Foundation
@@ -498,8 +380,10 @@ class PDFThumbnailView {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 const THUMBNAIL_SCROLL_MARGIN = -19;
 const THUMBNAIL_SELECTED_CLASS = "selected";
+
 /**
  * @typedef {Object} PDFThumbnailViewerOptions
  * @property {HTMLDivElement} container - The container for the thumbnail
@@ -507,15 +391,14 @@ const THUMBNAIL_SELECTED_CLASS = "selected";
  * @property {EventBus} eventBus - The application event bus.
  * @property {IPDFLinkService} linkService - The navigation/linking service.
  * @property {PDFRenderingQueue} renderingQueue - The rendering queue object.
- * @property {IL10n} l10n - Localization service.
+ * @property {Object} [pageColors] - Overwrites background and foreground colors
+ *   with user defined ones in order to improve readability in high contrast
+ *   mode.
  */
 
 /**
  * Viewer control to display thumbnails for pages in a PDF document.
- *
- * @implements {IRenderableView}
  */
-
 class PDFThumbnailViewer {
   /**
    * @param {PDFThumbnailViewerOptions} options
@@ -525,228 +408,174 @@ class PDFThumbnailViewer {
     eventBus,
     linkService,
     renderingQueue,
-    l10n
+    pageColors
   }) {
     this.container = container;
+    this.eventBus = eventBus;
     this.linkService = linkService;
     this.renderingQueue = renderingQueue;
-    this.l10n = l10n;
-    this.scroll = watchScroll(this.container, this._scrollUpdated.bind(this));
-
-    this._resetView();
-
-    eventBus._on("optionalcontentconfigchanged", () => {
-      // Ensure that the thumbnails always render with the *default* optional
-      // content configuration.
-      this._setImageDisabled = true;
-    });
+    this.pageColors = pageColors || null;
+    this.scroll = watchScroll(this.container, this.#scrollUpdated.bind(this));
+    this.#resetView();
   }
-  /**
-   * @private
-   */
-
-
-  _scrollUpdated() {
+  #scrollUpdated() {
     this.renderingQueue.renderHighestPriority();
   }
-
   getThumbnail(index) {
     return this._thumbnails[index];
   }
-  /**
-   * @private
-   */
-
-
-  _getVisibleThumbs() {
+  #getVisibleThumbs() {
     return getVisibleElements({
       scrollEl: this.container,
       views: this._thumbnails
     });
   }
-
   scrollThumbnailIntoView(pageNumber) {
     if (!this.pdfDocument) {
       return;
     }
-
     const thumbnailView = this._thumbnails[pageNumber - 1];
-
     if (!thumbnailView) {
       console.error('scrollThumbnailIntoView: Invalid "pageNumber" parameter.');
       return;
     }
-
     if (pageNumber !== this._currentPageNumber) {
-      const prevThumbnailView = this._thumbnails[this._currentPageNumber - 1]; // Remove the highlight from the previous thumbnail...
-
-      prevThumbnailView.div.classList.remove(THUMBNAIL_SELECTED_CLASS); // ... and add the highlight to the new thumbnail.
-
+      const prevThumbnailView = this._thumbnails[this._currentPageNumber - 1];
+      // Remove the highlight from the previous thumbnail...
+      prevThumbnailView.div.classList.remove(THUMBNAIL_SELECTED_CLASS);
+      // ... and add the highlight to the new thumbnail.
       thumbnailView.div.classList.add(THUMBNAIL_SELECTED_CLASS);
     }
+    const {
+      first,
+      last,
+      views
+    } = this.#getVisibleThumbs();
 
-    const visibleThumbs = this._getVisibleThumbs();
-
-    const numVisibleThumbs = visibleThumbs.views.length; // If the thumbnail isn't currently visible, scroll it into view.
-
-    if (numVisibleThumbs > 0) {
-      const first = visibleThumbs.first.id; // Account for only one thumbnail being visible.
-
-      const last = numVisibleThumbs > 1 ? visibleThumbs.last.id : first;
+    // If the thumbnail isn't currently visible, scroll it into view.
+    if (views.length > 0) {
       let shouldScroll = false;
-
-      if (pageNumber <= first || pageNumber >= last) {
+      if (pageNumber <= first.id || pageNumber >= last.id) {
         shouldScroll = true;
       } else {
-        visibleThumbs.views.some(function (view) {
-          if (view.id !== pageNumber) {
-            return false;
+        for (const {
+          id,
+          percent
+        } of views) {
+          if (id !== pageNumber) {
+            continue;
           }
-
-          shouldScroll = view.percent < 100;
-          return true;
-        });
+          shouldScroll = percent < 100;
+          break;
+        }
       }
-
       if (shouldScroll) {
         scrollIntoView(thumbnailView.div, {
           top: THUMBNAIL_SCROLL_MARGIN
         });
       }
     }
-
     this._currentPageNumber = pageNumber;
   }
-
   get pagesRotation() {
     return this._pagesRotation;
   }
-
   set pagesRotation(rotation) {
     if (!isValidRotation(rotation)) {
       throw new Error("Invalid thumbnails rotation angle.");
     }
-
     if (!this.pdfDocument) {
       return;
     }
-
     if (this._pagesRotation === rotation) {
       return; // The rotation didn't change.
     }
-
     this._pagesRotation = rotation;
-
-    for (let i = 0, ii = this._thumbnails.length; i < ii; i++) {
-      this._thumbnails[i].update(rotation);
+    const updateArgs = {
+      rotation
+    };
+    for (const thumbnail of this._thumbnails) {
+      thumbnail.update(updateArgs);
     }
   }
-
   cleanup() {
-    for (let i = 0, ii = this._thumbnails.length; i < ii; i++) {
-      if (this._thumbnails[i] && this._thumbnails[i].renderingState !== RenderingStates.FINISHED) {
-        this._thumbnails[i].reset();
+    for (const thumbnail of this._thumbnails) {
+      if (thumbnail.renderingState !== RenderingStates.FINISHED) {
+        thumbnail.reset();
       }
     }
-
     TempImageFactory.destroyCanvas();
   }
-  /**
-   * @private
-   */
-
-
-  _resetView() {
+  #resetView() {
     this._thumbnails = [];
     this._currentPageNumber = 1;
     this._pageLabels = null;
     this._pagesRotation = 0;
-    this._optionalContentConfigPromise = null;
-    this._pagesRequests = new WeakMap();
-    this._setImageDisabled = false; // Remove the thumbnails from the DOM.
 
+    // Remove the thumbnails from the DOM.
     this.container.textContent = "";
   }
 
+  /**
+   * @param {PDFDocumentProxy} pdfDocument
+   */
   setDocument(pdfDocument) {
     if (this.pdfDocument) {
-      this._cancelRendering();
-
-      this._resetView();
+      this.#cancelRendering();
+      this.#resetView();
     }
-
     this.pdfDocument = pdfDocument;
-
     if (!pdfDocument) {
       return;
     }
-
     const firstPagePromise = pdfDocument.getPage(1);
-    const optionalContentConfigPromise = pdfDocument.getOptionalContentConfig();
+    const optionalContentConfigPromise = pdfDocument.getOptionalContentConfig({
+      intent: "display"
+    });
     firstPagePromise.then(firstPdfPage => {
-      this._optionalContentConfigPromise = optionalContentConfigPromise;
+      var _this$_thumbnails$;
       const pagesCount = pdfDocument.numPages;
       const viewport = firstPdfPage.getViewport({
         scale: 1
       });
-
-      const checkSetImageDisabled = () => {
-        return this._setImageDisabled;
-      };
-
       for (let pageNum = 1; pageNum <= pagesCount; ++pageNum) {
         const thumbnail = new PDFThumbnailView({
           container: this.container,
+          eventBus: this.eventBus,
           id: pageNum,
           defaultViewport: viewport.clone(),
           optionalContentConfigPromise,
           linkService: this.linkService,
           renderingQueue: this.renderingQueue,
-          checkSetImageDisabled,
-          l10n: this.l10n
+          pageColors: this.pageColors
         });
-
         this._thumbnails.push(thumbnail);
-      } // Set the first `pdfPage` immediately, since it's already loaded,
+      }
+      // Set the first `pdfPage` immediately, since it's already loaded,
       // rather than having to repeat the `PDFDocumentProxy.getPage` call in
-      // the `this._ensurePdfPageLoaded` method before rendering can start.
+      // the `this.#ensurePdfPageLoaded` method before rendering can start.
+      (_this$_thumbnails$ = this._thumbnails[0]) === null || _this$_thumbnails$ === void 0 ? void 0 : _this$_thumbnails$.setPdfPage(firstPdfPage);
 
-
-      const firstThumbnailView = this._thumbnails[0];
-
-      if (firstThumbnailView) {
-        firstThumbnailView.setPdfPage(firstPdfPage);
-      } // Ensure that the current thumbnail is always highlighted on load.
-
-
+      // Ensure that the current thumbnail is always highlighted on load.
       const thumbnailView = this._thumbnails[this._currentPageNumber - 1];
       thumbnailView.div.classList.add(THUMBNAIL_SELECTED_CLASS);
     }).catch(reason => {
       console.error("Unable to initialize thumbnail viewer", reason);
     });
   }
-  /**
-   * @private
-   */
-
-
-  _cancelRendering() {
-    for (let i = 0, ii = this._thumbnails.length; i < ii; i++) {
-      if (this._thumbnails[i]) {
-        this._thumbnails[i].cancelRendering();
-      }
+  #cancelRendering() {
+    for (const thumbnail of this._thumbnails) {
+      thumbnail.cancelRendering();
     }
   }
+
   /**
    * @param {Array|null} labels
    */
-
-
   setPageLabels(labels) {
     if (!this.pdfDocument) {
       return;
     }
-
     if (!labels) {
       this._pageLabels = null;
     } else if (!(Array.isArray(labels) && this.pdfDocument.numPages === labels.length)) {
@@ -754,66 +583,54 @@ class PDFThumbnailViewer {
       console.error("PDFThumbnailViewer_setPageLabels: Invalid page labels.");
     } else {
       this._pageLabels = labels;
-    } // Update all the `PDFThumbnailView` instances.
-
-
+    }
+    // Update all the `PDFThumbnailView` instances.
     for (let i = 0, ii = this._thumbnails.length; i < ii; i++) {
       var _this$_pageLabels$i, _this$_pageLabels;
-
       this._thumbnails[i].setPageLabel((_this$_pageLabels$i = (_this$_pageLabels = this._pageLabels) === null || _this$_pageLabels === void 0 ? void 0 : _this$_pageLabels[i]) !== null && _this$_pageLabels$i !== void 0 ? _this$_pageLabels$i : null);
     }
   }
+
   /**
    * @param {PDFThumbnailView} thumbView
-   * @returns {PDFPage}
-   * @private
+   * @returns {Promise<PDFPageProxy | null>}
    */
-
-
-  _ensurePdfPageLoaded(thumbView) {
+  async #ensurePdfPageLoaded(thumbView) {
     if (thumbView.pdfPage) {
-      return Promise.resolve(thumbView.pdfPage);
+      return thumbView.pdfPage;
     }
-
-    if (this._pagesRequests.has(thumbView)) {
-      return this._pagesRequests.get(thumbView);
-    }
-
-    const promise = this.pdfDocument.getPage(thumbView.id).then(pdfPage => {
+    try {
+      const pdfPage = await this.pdfDocument.getPage(thumbView.id);
       if (!thumbView.pdfPage) {
         thumbView.setPdfPage(pdfPage);
       }
-
-      this._pagesRequests.delete(thumbView);
-
       return pdfPage;
-    }).catch(reason => {
-      console.error("Unable to get page for thumb view", reason); // Page error -- there is nothing that can be done.
-
-      this._pagesRequests.delete(thumbView);
-    });
-
-    this._pagesRequests.set(thumbView, promise);
-
-    return promise;
+    } catch (reason) {
+      console.error("Unable to get page for thumb view", reason);
+      return null; // Page error -- there is nothing that can be done.
+    }
   }
-
+  #getScrollAhead(visible) {
+    var _visible$first, _visible$last;
+    if (((_visible$first = visible.first) === null || _visible$first === void 0 ? void 0 : _visible$first.id) === 1) {
+      return true;
+    } else if (((_visible$last = visible.last) === null || _visible$last === void 0 ? void 0 : _visible$last.id) === this._thumbnails.length) {
+      return false;
+    }
+    return this.scroll.down;
+  }
   forceRendering() {
-    const visibleThumbs = this._getVisibleThumbs();
-
-    const thumbView = this.renderingQueue.getHighestPriority(visibleThumbs, this._thumbnails, this.scroll.down);
-
+    const visibleThumbs = this.#getVisibleThumbs();
+    const scrollAhead = this.#getScrollAhead(visibleThumbs);
+    const thumbView = this.renderingQueue.getHighestPriority(visibleThumbs, this._thumbnails, scrollAhead);
     if (thumbView) {
-      this._ensurePdfPageLoaded(thumbView).then(() => {
+      this.#ensurePdfPageLoaded(thumbView).then(() => {
         this.renderingQueue.renderView(thumbView);
       });
-
       return true;
     }
-
     return false;
   }
-
 }
 
 export { PDFThumbnailViewer };
