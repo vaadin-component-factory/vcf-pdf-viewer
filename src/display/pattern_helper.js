@@ -13,17 +13,17 @@
  * limitations under the License.
  */
 
-import {
-  FormatError,
-  info,
-  shadow,
-  unreachable,
-  Util,
-  warn,
-} from "../shared/util.js";
+import { FormatError, info, unreachable, Util } from "../shared/util.js";
+import { getCurrentTransform } from "./display_utils.js";
+
+const PathType = {
+  FILL: "Fill",
+  STROKE: "Stroke",
+  SHADING: "Shading",
+};
 
 function applyBoundingBox(ctx, bbox) {
-  if (!bbox || typeof Path2D === "undefined") {
+  if (!bbox) {
     return;
   }
   const width = bbox[2] - bbox[0];
@@ -55,8 +55,7 @@ class RadialAxialShadingPattern extends BaseShadingPattern {
     this._p1 = IR[5];
     this._r0 = IR[6];
     this._r1 = IR[7];
-    this._matrix = IR[8];
-    this._patternCache = null;
+    this.matrix = null;
   }
 
   _createGradient(ctx) {
@@ -85,49 +84,61 @@ class RadialAxialShadingPattern extends BaseShadingPattern {
     return grad;
   }
 
-  getPattern(ctx, owner, inverse, shadingFill = false) {
+  getPattern(ctx, owner, inverse, pathType) {
     let pattern;
-    if (this._patternCache) {
-      pattern = this._patternCache;
-    } else {
-      if (!shadingFill) {
-        const tmpCanvas = owner.cachedCanvases.getCanvas(
-          "pattern",
-          owner.ctx.canvas.width,
-          owner.ctx.canvas.height,
-          true
-        );
+    if (pathType === PathType.STROKE || pathType === PathType.FILL) {
+      const ownerBBox = owner.current.getClippedPathBoundingBox(
+        pathType,
+        getCurrentTransform(ctx)
+      ) || [0, 0, 0, 0];
+      // Create a canvas that is only as big as the current path. This doesn't
+      // allow us to cache the pattern, but it generally creates much smaller
+      // canvases and saves memory use. See bug 1722807 for an example.
+      const width = Math.ceil(ownerBBox[2] - ownerBBox[0]) || 1;
+      const height = Math.ceil(ownerBBox[3] - ownerBBox[1]) || 1;
 
-        const tmpCtx = tmpCanvas.context;
-        tmpCtx.clearRect(0, 0, tmpCtx.canvas.width, tmpCtx.canvas.height);
-        tmpCtx.beginPath();
-        tmpCtx.rect(0, 0, tmpCtx.canvas.width, tmpCtx.canvas.height);
+      const tmpCanvas = owner.cachedCanvases.getCanvas(
+        "pattern",
+        width,
+        height,
+        true
+      );
 
-        tmpCtx.setTransform.apply(tmpCtx, owner.baseTransform);
-        if (this._matrix) {
-          tmpCtx.transform.apply(tmpCtx, this._matrix);
-        }
-        applyBoundingBox(tmpCtx, this._bbox);
+      const tmpCtx = tmpCanvas.context;
+      tmpCtx.clearRect(0, 0, tmpCtx.canvas.width, tmpCtx.canvas.height);
+      tmpCtx.beginPath();
+      tmpCtx.rect(0, 0, tmpCtx.canvas.width, tmpCtx.canvas.height);
+      // Non shading fill patterns are positioned relative to the base transform
+      // (usually the page's initial transform), but we may have created a
+      // smaller canvas based on the path, so we must account for the shift.
+      tmpCtx.translate(-ownerBBox[0], -ownerBBox[1]);
+      inverse = Util.transform(inverse, [
+        1,
+        0,
+        0,
+        1,
+        ownerBBox[0],
+        ownerBBox[1],
+      ]);
 
-        tmpCtx.fillStyle = this._createGradient(tmpCtx);
-        tmpCtx.fill();
-
-        pattern = ctx.createPattern(tmpCanvas.canvas, "repeat");
-      } else {
-        applyBoundingBox(ctx, this._bbox);
-        pattern = this._createGradient(ctx);
+      tmpCtx.transform(...owner.baseTransform);
+      if (this.matrix) {
+        tmpCtx.transform(...this.matrix);
       }
-      this._patternCache = pattern;
-    }
-    if (!shadingFill) {
+      applyBoundingBox(tmpCtx, this._bbox);
+
+      tmpCtx.fillStyle = this._createGradient(tmpCtx);
+      tmpCtx.fill();
+
+      pattern = ctx.createPattern(tmpCanvas.canvas, "no-repeat");
       const domMatrix = new DOMMatrix(inverse);
-      try {
-        pattern.setTransform(domMatrix);
-      } catch (ex) {
-        // Avoid rendering breaking completely in Firefox 78 ESR,
-        // and in Node.js (see issue 13724).
-        warn(`RadialAxialShadingPattern.getPattern: "${ex?.message}".`);
-      }
+      pattern.setTransform(domMatrix);
+    } else {
+      // Shading fills are applied relative to the current matrix which is also
+      // how canvas gradients work, so there's no need to do anything special
+      // here.
+      applyBoundingBox(ctx, this._bbox);
+      pattern = this._createGradient(ctx);
     }
     return pattern;
   }
@@ -189,12 +200,7 @@ function drawTriangle(data, context, p1, p2, p3, c1, c2, c3) {
   let xb, cbr, cbg, cbb;
   for (let y = minY; y <= maxY; y++) {
     if (y < y2) {
-      let k;
-      if (y < y1) {
-        k = 0;
-      } else {
-        k = (y1 - y) / (y1 - y2);
-      }
+      const k = y < y1 ? 0 : (y1 - y) / (y1 - y2);
       xa = x1 - (x1 - x2) * k;
       car = c1r - (c1r - c2r) * k;
       cag = c1g - (c1g - c2g) * k;
@@ -305,9 +311,9 @@ class MeshShadingPattern extends BaseShadingPattern {
     this._colors = IR[3];
     this._figures = IR[4];
     this._bounds = IR[5];
-    this._matrix = IR[6];
     this._bbox = IR[7];
     this._background = IR[8];
+    this.matrix = null;
   }
 
   _createMeshCanvas(combinedScale, backgroundColor, cachedCanvases) {
@@ -381,16 +387,16 @@ class MeshShadingPattern extends BaseShadingPattern {
     };
   }
 
-  getPattern(ctx, owner, inverse, shadingFill = false) {
+  getPattern(ctx, owner, inverse, pathType) {
     applyBoundingBox(ctx, this._bbox);
     let scale;
-    if (shadingFill) {
-      scale = Util.singularValueDecompose2dScale(ctx.mozCurrentTransform);
+    if (pathType === PathType.SHADING) {
+      scale = Util.singularValueDecompose2dScale(getCurrentTransform(ctx));
     } else {
       // Obtain scale from matrix and current transformation matrix.
       scale = Util.singularValueDecompose2dScale(owner.baseTransform);
-      if (this._matrix) {
-        const matrixScale = Util.singularValueDecompose2dScale(this._matrix);
+      if (this.matrix) {
+        const matrixScale = Util.singularValueDecompose2dScale(this.matrix);
         scale = [scale[0] * matrixScale[0], scale[1] * matrixScale[1]];
       }
     }
@@ -399,14 +405,14 @@ class MeshShadingPattern extends BaseShadingPattern {
     // might cause OOM.
     const temporaryPatternCanvas = this._createMeshCanvas(
       scale,
-      shadingFill ? null : this._background,
+      pathType === PathType.SHADING ? null : this._background,
       owner.cachedCanvases
     );
 
-    if (!shadingFill) {
-      ctx.setTransform.apply(ctx, owner.baseTransform);
-      if (this._matrix) {
-        ctx.transform.apply(ctx, this._matrix);
+    if (pathType !== PathType.SHADING) {
+      ctx.setTransform(...owner.baseTransform);
+      if (this.matrix) {
+        ctx.transform(...this.matrix);
       }
     }
 
@@ -445,9 +451,7 @@ const PaintType = {
 
 class TilingPattern {
   // 10in @ 300dpi shall be enough.
-  static get MAX_PATTERN_SIZE() {
-    return shadow(this, "MAX_PATTERN_SIZE", 3000);
-  }
+  static MAX_PATTERN_SIZE = 3000;
 
   constructor(IR, color, ctx, canvasGraphicsFactory, baseTransform) {
     this.operatorList = IR[2];
@@ -540,7 +544,7 @@ class TilingPattern {
     let adjustedY0 = y0;
     let adjustedX1 = x1;
     let adjustedY1 = y1;
-    // Some bounding boxes have negative x0/y0 cordinates which will cause the
+    // Some bounding boxes have negative x0/y0 coordinates which will cause the
     // some of the drawing to be off of the canvas. To avoid this shift the
     // bounding box over.
     if (x0 < 0) {
@@ -554,9 +558,13 @@ class TilingPattern {
     tmpCtx.translate(-(dimx.scale * adjustedX0), -(dimy.scale * adjustedY0));
     graphics.transform(dimx.scale, 0, 0, dimy.scale, 0, 0);
 
+    // To match CanvasGraphics beginDrawing we must save the context here or
+    // else we end up with unbalanced save/restores.
+    tmpCtx.save();
+
     this.clipBbox(graphics, adjustedX0, adjustedY0, adjustedX1, adjustedY1);
 
-    graphics.baseTransform = graphics.ctx.mozCurrentTransform.slice();
+    graphics.baseTransform = getCurrentTransform(graphics.ctx);
 
     graphics.executeOperatorList(operatorList);
 
@@ -592,6 +600,12 @@ class TilingPattern {
     const bboxWidth = x1 - x0;
     const bboxHeight = y1 - y0;
     graphics.ctx.rect(x0, y0, bboxWidth, bboxHeight);
+    graphics.current.updateRectMinMax(getCurrentTransform(graphics.ctx), [
+      x0,
+      y0,
+      x1,
+      y1,
+    ]);
     graphics.clip();
     graphics.endPath();
   }
@@ -620,10 +634,10 @@ class TilingPattern {
     }
   }
 
-  getPattern(ctx, owner, inverse, shadingFill = false) {
+  getPattern(ctx, owner, inverse, pathType) {
     // PDF spec 8.7.2 NOTE 1: pattern's matrix is relative to initial matrix.
     let matrix = inverse;
-    if (!shadingFill) {
+    if (pathType !== PathType.SHADING) {
       matrix = Util.transform(matrix, owner.baseTransform);
       if (this.matrix) {
         matrix = Util.transform(matrix, this.matrix);
@@ -645,15 +659,10 @@ class TilingPattern {
     );
 
     const pattern = ctx.createPattern(temporaryPatternCanvas.canvas, "repeat");
-    try {
-      pattern.setTransform(domMatrix);
-    } catch (ex) {
-      // Avoid rendering breaking completely in Firefox 78 ESR,
-      // and in Node.js (see issue 13724).
-      warn(`TilingPattern.getPattern: "${ex?.message}".`);
-    }
+    pattern.setTransform(domMatrix);
+
     return pattern;
   }
 }
 
-export { getShadingPattern, TilingPattern };
+export { getShadingPattern, PathType, TilingPattern };

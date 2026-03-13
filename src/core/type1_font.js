@@ -24,11 +24,11 @@ import {
   CFFStrings,
   CFFTopDict,
 } from "./cff_parser.js";
+import { FormatError, warn } from "../shared/util.js";
 import { SEAC_ANALYSIS_ENABLED, type1FontGlyphMapping } from "./fonts_utils.js";
 import { isWhiteSpace } from "./core_utils.js";
 import { Stream } from "./stream.js";
 import { Type1Parser } from "./type1_parser.js";
-import { warn } from "../shared/util.js";
 
 function findBlock(streamBytes, signature, startIndex) {
   const streamBytesLength = streamBytes.length;
@@ -67,7 +67,7 @@ function getHeaderBlock(stream, suggestedLength) {
   try {
     headerBytes = stream.getBytes(suggestedLength);
     headerBytesLength = headerBytes.length;
-  } catch (ex) {
+  } catch {
     // Ignore errors if the `suggestedLength` is huge enough that a Uint8Array
     // cannot hold the result of `getBytes`, and fallback to simply checking
     // the entire stream (fixes issue3928.pdf).
@@ -140,6 +140,9 @@ function getEexecBlock(stream, suggestedLength) {
   // in the returned eexec block. In practice this does *not* seem to matter,
   // since `Type1Parser_extractFontProgram` will skip over any non-commands.
   const eexecBytes = stream.getBytes();
+  if (eexecBytes.length === 0) {
+    throw new FormatError("getEexecBlock - no font program found.");
+  }
   return {
     stream: new Stream(eexecBytes),
     length: eexecBytes.length,
@@ -219,9 +222,8 @@ class Type1Font {
 
   getCharset() {
     const charset = [".notdef"];
-    const charstrings = this.charstrings;
-    for (let glyphId = 0; glyphId < charstrings.length; glyphId++) {
-      charset.push(charstrings[glyphId].glyphName);
+    for (const { glyphName } of this.charstrings) {
+      charset.push(glyphName);
     }
     return charset;
   }
@@ -289,8 +291,8 @@ class Type1Font {
 
   getType2Charstrings(type1Charstrings) {
     const type2Charstrings = [];
-    for (let i = 0, ii = type1Charstrings.length; i < ii; i++) {
-      type2Charstrings.push(type1Charstrings[i].charstring);
+    for (const type1Charstring of type1Charstrings) {
+      type2Charstrings.push(type1Charstring.charstring);
     }
     return type2Charstrings;
   }

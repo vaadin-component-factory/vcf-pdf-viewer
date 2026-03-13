@@ -13,79 +13,71 @@
  * limitations under the License.
  */
 
+import {
+  $acceptWhitespace,
+  $addHTML,
+  $appendChild,
+  $childrenToHTML,
+  $clean,
+  $cleanup,
+  $clone,
+  $consumed,
+  $content,
+  $dump,
+  $extra,
+  $finalize,
+  $flushHTML,
+  $getAttributeIt,
+  $getAttributes,
+  $getAvailableSpace,
+  $getChildren,
+  $getChildrenByClass,
+  $getChildrenByName,
+  $getChildrenByNameIt,
+  $getContainedChildren,
+  $getDataValue,
+  $getParent,
+  $getRealChildrenByNameIt,
+  $getSubformParent,
+  $getTemplateRoot,
+  $globalData,
+  $hasSettableValue,
+  $indexOf,
+  $insertAt,
+  $isBindable,
+  $isCDATAXml,
+  $isDataValue,
+  $isDescendent,
+  $isNsAgnostic,
+  $isSplittable,
+  $isThereMoreWidth,
+  $isTransparent,
+  $lastAttribute,
+  $namespaceId,
+  $nodeName,
+  $nsAttributes,
+  $onChild,
+  $onChildCheck,
+  $onText,
+  $popPara,
+  $pushPara,
+  $removeChild,
+  $resolvePrototypes,
+  $root,
+  $setId,
+  $setSetAttributes,
+  $setValue,
+  $text,
+  $toHTML,
+  $toString,
+  $toStyle,
+  $uid,
+} from "./symbol_utils.js";
 import { getInteger, getKeyword, HTMLResult } from "./utils.js";
-import { shadow, warn } from "../../shared/util.js";
+import { shadow, utf8StringToString, warn } from "../../shared/util.js";
 import { encodeToXmlString } from "../core_utils.js";
 import { NamespaceIds } from "./namespaces.js";
 import { searchNode } from "./som.js";
-
-// We use these symbols to avoid name conflict between tags
-// and properties/methods names.
-const $acceptWhitespace = Symbol();
-const $addHTML = Symbol();
-const $appendChild = Symbol();
-const $childrenToHTML = Symbol();
-const $clean = Symbol();
-const $cleanPage = Symbol();
-const $cleanup = Symbol();
-const $clone = Symbol();
-const $consumed = Symbol();
-const $content = Symbol("content");
-const $data = Symbol("data");
-const $dump = Symbol();
-const $extra = Symbol("extra");
-const $finalize = Symbol();
-const $flushHTML = Symbol();
-const $getAttributeIt = Symbol();
-const $getAttributes = Symbol();
-const $getAvailableSpace = Symbol();
-const $getChildrenByClass = Symbol();
-const $getChildrenByName = Symbol();
-const $getChildrenByNameIt = Symbol();
-const $getDataValue = Symbol();
-const $getExtra = Symbol();
-const $getRealChildrenByNameIt = Symbol();
-const $getChildren = Symbol();
-const $getContainedChildren = Symbol();
-const $getNextPage = Symbol();
-const $getSubformParent = Symbol();
-const $getParent = Symbol();
-const $getTemplateRoot = Symbol();
-const $globalData = Symbol();
-const $hasSettableValue = Symbol();
-const $ids = Symbol();
-const $indexOf = Symbol();
-const $insertAt = Symbol();
-const $isCDATAXml = Symbol();
-const $isBindable = Symbol();
-const $isDataValue = Symbol();
-const $isDescendent = Symbol();
-const $isNsAgnostic = Symbol();
-const $isSplittable = Symbol();
-const $isThereMoreWidth = Symbol();
-const $isTransparent = Symbol();
-const $isUsable = Symbol();
-const $lastAttribute = Symbol();
-const $namespaceId = Symbol("namespaceId");
-const $nodeName = Symbol("nodeName");
-const $nsAttributes = Symbol();
-const $onChild = Symbol();
-const $onChildCheck = Symbol();
-const $onText = Symbol();
-const $pushGlyphs = Symbol();
-const $removeChild = Symbol();
-const $root = Symbol("root");
-const $resolvePrototypes = Symbol();
-const $searchNode = Symbol();
-const $setId = Symbol();
-const $setSetAttributes = Symbol();
-const $setValue = Symbol();
-const $tabIndex = Symbol();
-const $text = Symbol();
-const $toHTML = Symbol();
-const $toString = Symbol();
-const $toStyle = Symbol();
-const $uid = Symbol("uid");
 
 const _applyPrototype = Symbol();
 const _attributes = Symbol();
@@ -118,6 +110,29 @@ class XFAObject {
     this[_children] = [];
     this[$uid] = `${name}${uid++}`;
     this[$globalData] = null;
+  }
+
+  get isXFAObject() {
+    return true;
+  }
+
+  get isXFAObjectArray() {
+    return false;
+  }
+
+  createNodes(path) {
+    let root = this,
+      node = null;
+    for (const { name, index } of path) {
+      for (let i = 0, ii = isFinite(index) ? index : 0; i <= ii; i++) {
+        const nsId =
+          root[$namespaceId] === NS_DATASETS ? -1 : root[$namespaceId];
+        node = new XmlObject(nsId, name);
+        root[$appendChild](node);
+      }
+      root = node;
+    }
+    return node;
   }
 
   [$onChild](child) {
@@ -177,6 +192,16 @@ class XFAObject {
     return false;
   }
 
+  [$popPara]() {
+    if (this.para) {
+      this[$getTemplateRoot]()[$extra].paraStack.pop();
+    }
+  }
+
+  [$pushPara]() {
+    this[$getTemplateRoot]()[$extra].paraStack.push(this.para);
+  }
+
   [$setId](ids) {
     if (this.id && this[$namespaceId] === NamespaceIds.template.id) {
       ids.set(this.id, this);
@@ -204,6 +229,9 @@ class XFAObject {
   [$appendChild](child) {
     child[_parent] = this;
     this[_children].push(child);
+    if (!child[$globalData] && this[$globalData]) {
+      child[$globalData] = this[$globalData];
+    }
   }
 
   [$removeChild](child) {
@@ -236,6 +264,9 @@ class XFAObject {
   [$insertAt](i, child) {
     child[_parent] = this;
     this[_children].splice(i, 0, child);
+    if (!child[$globalData] && this[$globalData]) {
+      child[$globalData] = this[$globalData];
+    }
   }
 
   /**
@@ -421,7 +452,7 @@ class XFAObject {
 
   /**
    * Update the node with properties coming from a prototype and apply
-   * this function recursivly to all children.
+   * this function recursively to all children.
    */
   [$resolvePrototypes](ids, ancestors = new Set()) {
     for (const child of this[_children]) {
@@ -462,9 +493,9 @@ class XFAObject {
       // - URI
       // For now we don't handle URI other than "." (current document).
       if (usehref.startsWith("#som(") && usehref.endsWith(")")) {
-        somExpression = usehref.slice("#som(".length, usehref.length - 1);
+        somExpression = usehref.slice("#som(".length, -1);
       } else if (usehref.startsWith(".#som(") && usehref.endsWith(")")) {
-        somExpression = usehref.slice(".#som(".length, usehref.length - 1);
+        somExpression = usehref.slice(".#som(".length, -1);
       } else if (usehref.startsWith("#")) {
         id = usehref.slice(1);
       } else if (usehref.startsWith(".#")) {
@@ -613,7 +644,7 @@ class XFAObject {
     for (const $symbol of Object.getOwnPropertySymbols(this)) {
       try {
         clone[$symbol] = this[$symbol];
-      } catch (_) {
+      } catch {
         shadow(clone, $symbol, this[$symbol]);
       }
     }
@@ -626,11 +657,10 @@ class XFAObject {
         continue;
       }
       const value = this[name];
-      if (value instanceof XFAObjectArray) {
-        clone[name] = new XFAObjectArray(value[_max]);
-      } else {
-        clone[name] = null;
-      }
+      clone[name] =
+        value instanceof XFAObjectArray
+          ? new XFAObjectArray(value[_max])
+          : null;
     }
 
     for (const child of this[_children]) {
@@ -694,6 +724,14 @@ class XFAObjectArray {
   constructor(max = Infinity) {
     this[_max] = max;
     this[_children] = [];
+  }
+
+  get isXFAObject() {
+    return false;
+  }
+
+  get isXFAObjectArray() {
+    return true;
   }
 
   push(child) {
@@ -800,10 +838,12 @@ class XmlObject extends XFAObject {
       buf.push(encodeToXmlString(this[$content]));
       return;
     }
+    const utf8TagName = utf8StringToString(tagName);
     const prefix = this[$namespaceId] === NS_DATASETS ? "xfa:" : "";
-    buf.push(`<${prefix}${tagName}`);
+    buf.push(`<${prefix}${utf8TagName}`);
     for (const [name, value] of this[_attributes].entries()) {
-      buf.push(` ${name}="${encodeToXmlString(value[$content])}"`);
+      const utf8Name = utf8StringToString(name);
+      buf.push(` ${utf8Name}="${encodeToXmlString(value[$content])}"`);
     }
     if (this[_dataValue] !== null) {
       if (this[_dataValue]) {
@@ -829,7 +869,7 @@ class XmlObject extends XFAObject {
         child[$toString](buf);
       }
     }
-    buf.push(`</${prefix}${tagName}>`);
+    buf.push(`</${prefix}${utf8TagName}>`);
   }
 
   [$onChild](child) {
@@ -958,8 +998,11 @@ class XmlObject extends XFAObject {
     this[$content] = value.toString();
   }
 
-  [$dump]() {
+  [$dump](hasNS = false) {
     const dumped = Object.create(null);
+    if (hasNS) {
+      dumped.$ns = this[$namespaceId];
+    }
     if (this[$content]) {
       dumped.$content = this[$content];
     }
@@ -967,7 +1010,7 @@ class XmlObject extends XFAObject {
 
     dumped.children = [];
     for (const child of this[_children]) {
-      dumped.children.push(child[$dump]());
+      dumped.children.push(child[$dump](hasNS));
     }
 
     dumped.attributes = Object.create(null);
@@ -1053,70 +1096,6 @@ class Option10 extends IntegerObject {
 }
 
 export {
-  $acceptWhitespace,
-  $addHTML,
-  $appendChild,
-  $childrenToHTML,
-  $clean,
-  $cleanPage,
-  $cleanup,
-  $clone,
-  $consumed,
-  $content,
-  $data,
-  $dump,
-  $extra,
-  $finalize,
-  $flushHTML,
-  $getAttributeIt,
-  $getAttributes,
-  $getAvailableSpace,
-  $getChildren,
-  $getChildrenByClass,
-  $getChildrenByName,
-  $getChildrenByNameIt,
-  $getContainedChildren,
-  $getDataValue,
-  $getExtra,
-  $getNextPage,
-  $getParent,
-  $getRealChildrenByNameIt,
-  $getSubformParent,
-  $getTemplateRoot,
-  $globalData,
-  $hasSettableValue,
-  $ids,
-  $indexOf,
-  $insertAt,
-  $isBindable,
-  $isCDATAXml,
-  $isDataValue,
-  $isDescendent,
-  $isNsAgnostic,
-  $isSplittable,
-  $isThereMoreWidth,
-  $isTransparent,
-  $isUsable,
-  $namespaceId,
-  $nodeName,
-  $nsAttributes,
-  $onChild,
-  $onChildCheck,
-  $onText,
-  $pushGlyphs,
-  $removeChild,
-  $resolvePrototypes,
-  $root,
-  $searchNode,
-  $setId,
-  $setSetAttributes,
-  $setValue,
-  $tabIndex,
-  $text,
-  $toHTML,
-  $toString,
-  $toStyle,
-  $uid,
   ContentObject,
   IntegerObject,
   Option01,

@@ -13,16 +13,17 @@
  * limitations under the License.
  */
 
-import { Dict, isDict, isStream, Ref } from "./primitives.js";
+import { Dict, Ref } from "./primitives.js";
 import {
+  FeatureTest,
   FormatError,
   info,
-  isBool,
-  IsEvalSupportedCached,
   shadow,
   unreachable,
 } from "../shared/util.js";
 import { PostScriptLexer, PostScriptParser } from "./ps_parser.js";
+import { BaseStream } from "./base_stream.js";
+import { isNumberArray } from "./core_utils.js";
 import { LocalFunctionCache } from "./image_utils.js";
 
 class PDFFunctionFactory {
@@ -71,8 +72,8 @@ class PDFFunctionFactory {
       fnRef = cacheKey;
     } else if (cacheKey instanceof Dict) {
       fnRef = cacheKey.objId;
-    } else if (isStream(cacheKey)) {
-      fnRef = cacheKey.dict && cacheKey.dict.objId;
+    } else if (cacheKey instanceof BaseStream) {
+      fnRef = cacheKey.dict?.objId;
     }
     if (fnRef) {
       const localFunction = this._localFunctionCache.getByRef(fnRef);
@@ -97,8 +98,8 @@ class PDFFunctionFactory {
       fnRef = cacheKey;
     } else if (cacheKey instanceof Dict) {
       fnRef = cacheKey.objId;
-    } else if (isStream(cacheKey)) {
-      fnRef = cacheKey.dict && cacheKey.dict.objId;
+    } else if (cacheKey instanceof BaseStream) {
+      fnRef = cacheKey.dict?.objId;
     }
     if (fnRef) {
       this._localFunctionCache.set(/* name = */ null, fnRef, parsedFunction);
@@ -117,16 +118,9 @@ function toNumberArray(arr) {
   if (!Array.isArray(arr)) {
     return null;
   }
-  const length = arr.length;
-  for (let i = 0; i < length; i++) {
-    if (typeof arr[i] !== "number") {
-      // Non-number is found -- convert all items to numbers.
-      const result = new Array(length);
-      for (let j = 0; j < length; j++) {
-        result[j] = +arr[j];
-      }
-      return result;
-    }
+  if (!isNumberArray(arr, null)) {
+    // Non-number is found -- convert all items to numbers.
+    return arr.map(x => +x);
   }
   return arr;
 }
@@ -187,9 +181,9 @@ class PDFFunction {
     }
 
     const fnArray = [];
-    for (let j = 0, jj = fnObj.length; j < jj; j++) {
+    for (const fn of fnObj) {
       fnArray.push(
-        this.parse({ xref, isEvalSupported, fn: xref.fetchIfRef(fnObj[j]) })
+        this.parse({ xref, isEvalSupported, fn: xref.fetchIfRef(fn) })
       );
     }
     return function (src, srcOffset, dest, destOffset) {
@@ -247,11 +241,7 @@ class PDFFunction {
     }
 
     let decode = toNumberArray(dict.getArray("Decode"));
-    if (!decode) {
-      decode = range;
-    } else {
-      decode = toMultiArray(decode);
-    }
+    decode = !decode ? range : toMultiArray(decode);
 
     const samples = this.getSampleArray(size, outputSize, bps, fn);
     // const mask = 2 ** bps - 1;
@@ -364,12 +354,9 @@ class PDFFunction {
       throw new FormatError("Bad domain for stiched function");
     }
 
-    const fnRefs = dict.get("Functions");
     const fns = [];
-    for (let i = 0, ii = fnRefs.length; i < ii; ++i) {
-      fns.push(
-        this.parse({ xref, isEvalSupported, fn: xref.fetchIfRef(fnRefs[i]) })
-      );
+    for (const fn of dict.get("Functions")) {
+      fns.push(this.parse({ xref, isEvalSupported, fn: xref.fetchIfRef(fn) }));
     }
 
     const bounds = toNumberArray(dict.getArray("Bounds"));
@@ -438,7 +425,7 @@ class PDFFunction {
     const parser = new PostScriptParser(lexer);
     const code = parser.parse();
 
-    if (isEvalSupported && IsEvalSupportedCached.value) {
+    if (isEvalSupported && FeatureTest.isEvalSupported) {
       const compiled = new PostScriptCompiler().compile(code, domain, range);
       if (compiled) {
         // Compiled function consists of simple expressions such as addition,
@@ -505,11 +492,9 @@ class PDFFunction {
 
 function isPDFFunction(v) {
   let fnDict;
-  if (typeof v !== "object") {
-    return false;
-  } else if (isDict(v)) {
+  if (v instanceof Dict) {
     fnDict = v;
-  } else if (isStream(v)) {
+  } else if (v instanceof BaseStream) {
     fnDict = v.dict;
   } else {
     return false;
@@ -518,14 +503,10 @@ function isPDFFunction(v) {
 }
 
 class PostScriptStack {
-  static get MAX_STACK_SIZE() {
-    return shadow(this, "MAX_STACK_SIZE", 100);
-  }
+  static MAX_STACK_SIZE = 100;
 
   constructor(initialStack) {
-    this.stack = !initialStack
-      ? []
-      : Array.prototype.slice.call(initialStack, 0);
+    this.stack = initialStack ? Array.from(initialStack) : [];
   }
 
   push(value) {
@@ -626,15 +607,20 @@ class PostScriptEvaluator {
         case "and":
           b = stack.pop();
           a = stack.pop();
-          if (isBool(a) && isBool(b)) {
+          if (typeof a === "boolean" && typeof b === "boolean") {
             stack.push(a && b);
           } else {
             stack.push(a & b);
           }
           break;
         case "atan":
+          b = stack.pop();
           a = stack.pop();
-          stack.push(Math.atan(a));
+          a = (Math.atan2(a, b) / Math.PI) * 180;
+          if (a < 0) {
+            a += 360;
+          }
+          stack.push(a);
           break;
         case "bitshift":
           b = stack.pop();
@@ -655,7 +641,7 @@ class PostScriptEvaluator {
           break;
         case "cos":
           a = stack.pop();
-          stack.push(Math.cos(a));
+          stack.push(Math.cos(((a % 360) / 180) * Math.PI));
           break;
         case "cvi":
           a = stack.pop() | 0;
@@ -722,7 +708,7 @@ class PostScriptEvaluator {
           break;
         case "log":
           a = stack.pop();
-          stack.push(Math.log(a) / Math.LN10);
+          stack.push(Math.log10(a));
           break;
         case "lt":
           b = stack.pop();
@@ -750,7 +736,7 @@ class PostScriptEvaluator {
           break;
         case "not":
           a = stack.pop();
-          if (isBool(a)) {
+          if (typeof a === "boolean") {
             stack.push(!a);
           } else {
             stack.push(~a);
@@ -759,7 +745,7 @@ class PostScriptEvaluator {
         case "or":
           b = stack.pop();
           a = stack.pop();
-          if (isBool(a) && isBool(b)) {
+          if (typeof a === "boolean" && typeof b === "boolean") {
             stack.push(a || b);
           } else {
             stack.push(a | b);
@@ -779,7 +765,7 @@ class PostScriptEvaluator {
           break;
         case "sin":
           a = stack.pop();
-          stack.push(Math.sin(a));
+          stack.push(Math.sin(((a % 360) / 180) * Math.PI));
           break;
         case "sqrt":
           a = stack.pop();
@@ -801,7 +787,7 @@ class PostScriptEvaluator {
         case "xor":
           b = stack.pop();
           a = stack.pop();
-          if (isBool(a) && isBool(b)) {
+          if (typeof a === "boolean" && typeof b === "boolean") {
             stack.push(a !== b);
           } else {
             stack.push(a ^ b);
@@ -815,439 +801,431 @@ class PostScriptEvaluator {
   }
 }
 
+class AstNode {
+  constructor(type) {
+    this.type = type;
+  }
+
+  visit(visitor) {
+    unreachable("abstract method");
+  }
+}
+
+class AstArgument extends AstNode {
+  constructor(index, min, max) {
+    super("args");
+    this.index = index;
+    this.min = min;
+    this.max = max;
+  }
+
+  visit(visitor) {
+    visitor.visitArgument(this);
+  }
+}
+
+class AstLiteral extends AstNode {
+  constructor(number) {
+    super("literal");
+    this.number = number;
+    this.min = number;
+    this.max = number;
+  }
+
+  visit(visitor) {
+    visitor.visitLiteral(this);
+  }
+}
+
+class AstBinaryOperation extends AstNode {
+  constructor(op, arg1, arg2, min, max) {
+    super("binary");
+    this.op = op;
+    this.arg1 = arg1;
+    this.arg2 = arg2;
+    this.min = min;
+    this.max = max;
+  }
+
+  visit(visitor) {
+    visitor.visitBinaryOperation(this);
+  }
+}
+
+class AstMin extends AstNode {
+  constructor(arg, max) {
+    super("max");
+    this.arg = arg;
+    this.min = arg.min;
+    this.max = max;
+  }
+
+  visit(visitor) {
+    visitor.visitMin(this);
+  }
+}
+
+class AstVariable extends AstNode {
+  constructor(index, min, max) {
+    super("var");
+    this.index = index;
+    this.min = min;
+    this.max = max;
+  }
+
+  visit(visitor) {
+    visitor.visitVariable(this);
+  }
+}
+
+class AstVariableDefinition extends AstNode {
+  constructor(variable, arg) {
+    super("definition");
+    this.variable = variable;
+    this.arg = arg;
+  }
+
+  visit(visitor) {
+    visitor.visitVariableDefinition(this);
+  }
+}
+
+class ExpressionBuilderVisitor {
+  constructor() {
+    this.parts = [];
+  }
+
+  visitArgument(arg) {
+    this.parts.push(
+      "Math.max(",
+      arg.min,
+      ", Math.min(",
+      arg.max,
+      ", src[srcOffset + ",
+      arg.index,
+      "]))"
+    );
+  }
+
+  visitVariable(variable) {
+    this.parts.push("v", variable.index);
+  }
+
+  visitLiteral(literal) {
+    this.parts.push(literal.number);
+  }
+
+  visitBinaryOperation(operation) {
+    this.parts.push("(");
+    operation.arg1.visit(this);
+    this.parts.push(" ", operation.op, " ");
+    operation.arg2.visit(this);
+    this.parts.push(")");
+  }
+
+  visitVariableDefinition(definition) {
+    this.parts.push("var ");
+    definition.variable.visit(this);
+    this.parts.push(" = ");
+    definition.arg.visit(this);
+    this.parts.push(";");
+  }
+
+  visitMin(max) {
+    this.parts.push("Math.min(");
+    max.arg.visit(this);
+    this.parts.push(", ", max.max, ")");
+  }
+
+  toString() {
+    return this.parts.join("");
+  }
+}
+
+function buildAddOperation(num1, num2) {
+  if (num2.type === "literal" && num2.number === 0) {
+    // optimization: second operand is 0
+    return num1;
+  }
+  if (num1.type === "literal" && num1.number === 0) {
+    // optimization: first operand is 0
+    return num2;
+  }
+  if (num2.type === "literal" && num1.type === "literal") {
+    // optimization: operands operand are literals
+    return new AstLiteral(num1.number + num2.number);
+  }
+  return new AstBinaryOperation(
+    "+",
+    num1,
+    num2,
+    num1.min + num2.min,
+    num1.max + num2.max
+  );
+}
+
+function buildMulOperation(num1, num2) {
+  if (num2.type === "literal") {
+    // optimization: second operands is a literal...
+    if (num2.number === 0) {
+      return new AstLiteral(0); // and it's 0
+    } else if (num2.number === 1) {
+      return num1; // and it's 1
+    } else if (num1.type === "literal") {
+      // ... and first operands is a literal too
+      return new AstLiteral(num1.number * num2.number);
+    }
+  }
+  if (num1.type === "literal") {
+    // optimization: first operands is a literal...
+    if (num1.number === 0) {
+      return new AstLiteral(0); // and it's 0
+    } else if (num1.number === 1) {
+      return num2; // and it's 1
+    }
+  }
+  const min = Math.min(
+    num1.min * num2.min,
+    num1.min * num2.max,
+    num1.max * num2.min,
+    num1.max * num2.max
+  );
+  const max = Math.max(
+    num1.min * num2.min,
+    num1.min * num2.max,
+    num1.max * num2.min,
+    num1.max * num2.max
+  );
+  return new AstBinaryOperation("*", num1, num2, min, max);
+}
+
+function buildSubOperation(num1, num2) {
+  if (num2.type === "literal") {
+    // optimization: second operands is a literal...
+    if (num2.number === 0) {
+      return num1; // ... and it's 0
+    } else if (num1.type === "literal") {
+      // ... and first operands is a literal too
+      return new AstLiteral(num1.number - num2.number);
+    }
+  }
+  if (
+    num2.type === "binary" &&
+    num2.op === "-" &&
+    num1.type === "literal" &&
+    num1.number === 1 &&
+    num2.arg1.type === "literal" &&
+    num2.arg1.number === 1
+  ) {
+    // optimization for case: 1 - (1 - x)
+    return num2.arg2;
+  }
+  return new AstBinaryOperation(
+    "-",
+    num1,
+    num2,
+    num1.min - num2.max,
+    num1.max - num2.min
+  );
+}
+
+function buildMinOperation(num1, max) {
+  if (num1.min >= max) {
+    // optimization: num1 min value is not less than required max
+    return new AstLiteral(max); // just returning max
+  } else if (num1.max <= max) {
+    // optimization: num1 max value is not greater than required max
+    return num1; // just returning an argument
+  }
+  return new AstMin(num1, max);
+}
+
 // Most of the PDFs functions consist of simple operations such as:
 //   roll, exch, sub, cvr, pop, index, dup, mul, if, gt, add.
 //
 // We can compile most of such programs, and at the same moment, we can
 // optimize some expressions using basic math properties. Keeping track of
 // min/max values will allow us to avoid extra Math.min/Math.max calls.
-const PostScriptCompiler = (function PostScriptCompilerClosure() {
-  class AstNode {
-    constructor(type) {
-      this.type = type;
+class PostScriptCompiler {
+  compile(code, domain, range) {
+    const stack = [];
+    const instructions = [];
+    const inputSize = domain.length >> 1,
+      outputSize = range.length >> 1;
+    let lastRegister = 0;
+    let n, j;
+    let num1, num2, ast1, ast2, tmpVar, item;
+    for (let i = 0; i < inputSize; i++) {
+      stack.push(new AstArgument(i, domain[i * 2], domain[i * 2 + 1]));
     }
 
-    visit(visitor) {
-      unreachable("abstract method");
-    }
-  }
-
-  class AstArgument extends AstNode {
-    constructor(index, min, max) {
-      super("args");
-      this.index = index;
-      this.min = min;
-      this.max = max;
-    }
-
-    visit(visitor) {
-      visitor.visitArgument(this);
-    }
-  }
-
-  class AstLiteral extends AstNode {
-    constructor(number) {
-      super("literal");
-      this.number = number;
-      this.min = number;
-      this.max = number;
-    }
-
-    visit(visitor) {
-      visitor.visitLiteral(this);
-    }
-  }
-
-  class AstBinaryOperation extends AstNode {
-    constructor(op, arg1, arg2, min, max) {
-      super("binary");
-      this.op = op;
-      this.arg1 = arg1;
-      this.arg2 = arg2;
-      this.min = min;
-      this.max = max;
-    }
-
-    visit(visitor) {
-      visitor.visitBinaryOperation(this);
-    }
-  }
-
-  class AstMin extends AstNode {
-    constructor(arg, max) {
-      super("max");
-      this.arg = arg;
-      this.min = arg.min;
-      this.max = max;
-    }
-
-    visit(visitor) {
-      visitor.visitMin(this);
-    }
-  }
-
-  class AstVariable extends AstNode {
-    constructor(index, min, max) {
-      super("var");
-      this.index = index;
-      this.min = min;
-      this.max = max;
-    }
-
-    visit(visitor) {
-      visitor.visitVariable(this);
-    }
-  }
-
-  class AstVariableDefinition extends AstNode {
-    constructor(variable, arg) {
-      super("definition");
-      this.variable = variable;
-      this.arg = arg;
-    }
-
-    visit(visitor) {
-      visitor.visitVariableDefinition(this);
-    }
-  }
-
-  class ExpressionBuilderVisitor {
-    constructor() {
-      this.parts = [];
-    }
-
-    visitArgument(arg) {
-      this.parts.push(
-        "Math.max(",
-        arg.min,
-        ", Math.min(",
-        arg.max,
-        ", src[srcOffset + ",
-        arg.index,
-        "]))"
-      );
-    }
-
-    visitVariable(variable) {
-      this.parts.push("v", variable.index);
-    }
-
-    visitLiteral(literal) {
-      this.parts.push(literal.number);
-    }
-
-    visitBinaryOperation(operation) {
-      this.parts.push("(");
-      operation.arg1.visit(this);
-      this.parts.push(" ", operation.op, " ");
-      operation.arg2.visit(this);
-      this.parts.push(")");
-    }
-
-    visitVariableDefinition(definition) {
-      this.parts.push("var ");
-      definition.variable.visit(this);
-      this.parts.push(" = ");
-      definition.arg.visit(this);
-      this.parts.push(";");
-    }
-
-    visitMin(max) {
-      this.parts.push("Math.min(");
-      max.arg.visit(this);
-      this.parts.push(", ", max.max, ")");
-    }
-
-    toString() {
-      return this.parts.join("");
-    }
-  }
-
-  function buildAddOperation(num1, num2) {
-    if (num2.type === "literal" && num2.number === 0) {
-      // optimization: second operand is 0
-      return num1;
-    }
-    if (num1.type === "literal" && num1.number === 0) {
-      // optimization: first operand is 0
-      return num2;
-    }
-    if (num2.type === "literal" && num1.type === "literal") {
-      // optimization: operands operand are literals
-      return new AstLiteral(num1.number + num2.number);
-    }
-    return new AstBinaryOperation(
-      "+",
-      num1,
-      num2,
-      num1.min + num2.min,
-      num1.max + num2.max
-    );
-  }
-
-  function buildMulOperation(num1, num2) {
-    if (num2.type === "literal") {
-      // optimization: second operands is a literal...
-      if (num2.number === 0) {
-        return new AstLiteral(0); // and it's 0
-      } else if (num2.number === 1) {
-        return num1; // and it's 1
-      } else if (num1.type === "literal") {
-        // ... and first operands is a literal too
-        return new AstLiteral(num1.number * num2.number);
-      }
-    }
-    if (num1.type === "literal") {
-      // optimization: first operands is a literal...
-      if (num1.number === 0) {
-        return new AstLiteral(0); // and it's 0
-      } else if (num1.number === 1) {
-        return num2; // and it's 1
-      }
-    }
-    const min = Math.min(
-      num1.min * num2.min,
-      num1.min * num2.max,
-      num1.max * num2.min,
-      num1.max * num2.max
-    );
-    const max = Math.max(
-      num1.min * num2.min,
-      num1.min * num2.max,
-      num1.max * num2.min,
-      num1.max * num2.max
-    );
-    return new AstBinaryOperation("*", num1, num2, min, max);
-  }
-
-  function buildSubOperation(num1, num2) {
-    if (num2.type === "literal") {
-      // optimization: second operands is a literal...
-      if (num2.number === 0) {
-        return num1; // ... and it's 0
-      } else if (num1.type === "literal") {
-        // ... and first operands is a literal too
-        return new AstLiteral(num1.number - num2.number);
-      }
-    }
-    if (
-      num2.type === "binary" &&
-      num2.op === "-" &&
-      num1.type === "literal" &&
-      num1.number === 1 &&
-      num2.arg1.type === "literal" &&
-      num2.arg1.number === 1
-    ) {
-      // optimization for case: 1 - (1 - x)
-      return num2.arg2;
-    }
-    return new AstBinaryOperation(
-      "-",
-      num1,
-      num2,
-      num1.min - num2.max,
-      num1.max - num2.min
-    );
-  }
-
-  function buildMinOperation(num1, max) {
-    if (num1.min >= max) {
-      // optimization: num1 min value is not less than required max
-      return new AstLiteral(max); // just returning max
-    } else if (num1.max <= max) {
-      // optimization: num1 max value is not greater than required max
-      return num1; // just returning an argument
-    }
-    return new AstMin(num1, max);
-  }
-
-  // eslint-disable-next-line no-shadow
-  class PostScriptCompiler {
-    compile(code, domain, range) {
-      const stack = [];
-      const instructions = [];
-      const inputSize = domain.length >> 1,
-        outputSize = range.length >> 1;
-      let lastRegister = 0;
-      let n, j;
-      let num1, num2, ast1, ast2, tmpVar, item;
-      for (let i = 0; i < inputSize; i++) {
-        stack.push(new AstArgument(i, domain[i * 2], domain[i * 2 + 1]));
+    for (let i = 0, ii = code.length; i < ii; i++) {
+      item = code[i];
+      if (typeof item === "number") {
+        stack.push(new AstLiteral(item));
+        continue;
       }
 
-      for (let i = 0, ii = code.length; i < ii; i++) {
-        item = code[i];
-        if (typeof item === "number") {
-          stack.push(new AstLiteral(item));
-          continue;
-        }
-
-        switch (item) {
-          case "add":
-            if (stack.length < 2) {
-              return null;
-            }
-            num2 = stack.pop();
+      switch (item) {
+        case "add":
+          if (stack.length < 2) {
+            return null;
+          }
+          num2 = stack.pop();
+          num1 = stack.pop();
+          stack.push(buildAddOperation(num1, num2));
+          break;
+        case "cvr":
+          if (stack.length < 1) {
+            return null;
+          }
+          break;
+        case "mul":
+          if (stack.length < 2) {
+            return null;
+          }
+          num2 = stack.pop();
+          num1 = stack.pop();
+          stack.push(buildMulOperation(num1, num2));
+          break;
+        case "sub":
+          if (stack.length < 2) {
+            return null;
+          }
+          num2 = stack.pop();
+          num1 = stack.pop();
+          stack.push(buildSubOperation(num1, num2));
+          break;
+        case "exch":
+          if (stack.length < 2) {
+            return null;
+          }
+          ast1 = stack.pop();
+          ast2 = stack.pop();
+          stack.push(ast1, ast2);
+          break;
+        case "pop":
+          if (stack.length < 1) {
+            return null;
+          }
+          stack.pop();
+          break;
+        case "index":
+          if (stack.length < 1) {
+            return null;
+          }
+          num1 = stack.pop();
+          if (num1.type !== "literal") {
+            return null;
+          }
+          n = num1.number;
+          if (n < 0 || !Number.isInteger(n) || stack.length < n) {
+            return null;
+          }
+          ast1 = stack[stack.length - n - 1];
+          if (ast1.type === "literal" || ast1.type === "var") {
+            stack.push(ast1);
+            break;
+          }
+          tmpVar = new AstVariable(lastRegister++, ast1.min, ast1.max);
+          stack[stack.length - n - 1] = tmpVar;
+          stack.push(tmpVar);
+          instructions.push(new AstVariableDefinition(tmpVar, ast1));
+          break;
+        case "dup":
+          if (stack.length < 1) {
+            return null;
+          }
+          if (
+            typeof code[i + 1] === "number" &&
+            code[i + 2] === "gt" &&
+            code[i + 3] === i + 7 &&
+            code[i + 4] === "jz" &&
+            code[i + 5] === "pop" &&
+            code[i + 6] === code[i + 1]
+          ) {
+            // special case of the commands sequence for the min operation
             num1 = stack.pop();
-            stack.push(buildAddOperation(num1, num2));
+            stack.push(buildMinOperation(num1, code[i + 1]));
+            i += 6;
             break;
-          case "cvr":
-            if (stack.length < 1) {
-              return null;
-            }
+          }
+          ast1 = stack.at(-1);
+          if (ast1.type === "literal" || ast1.type === "var") {
+            // we don't have to save into intermediate variable a literal or
+            // variable.
+            stack.push(ast1);
             break;
-          case "mul":
-            if (stack.length < 2) {
-              return null;
-            }
-            num2 = stack.pop();
-            num1 = stack.pop();
-            stack.push(buildMulOperation(num1, num2));
-            break;
-          case "sub":
-            if (stack.length < 2) {
-              return null;
-            }
-            num2 = stack.pop();
-            num1 = stack.pop();
-            stack.push(buildSubOperation(num1, num2));
-            break;
-          case "exch":
-            if (stack.length < 2) {
-              return null;
-            }
-            ast1 = stack.pop();
-            ast2 = stack.pop();
-            stack.push(ast1, ast2);
-            break;
-          case "pop":
-            if (stack.length < 1) {
-              return null;
-            }
-            stack.pop();
-            break;
-          case "index":
-            if (stack.length < 1) {
-              return null;
-            }
-            num1 = stack.pop();
-            if (num1.type !== "literal") {
-              return null;
-            }
-            n = num1.number;
-            if (n < 0 || !Number.isInteger(n) || stack.length < n) {
-              return null;
-            }
-            ast1 = stack[stack.length - n - 1];
-            if (ast1.type === "literal" || ast1.type === "var") {
-              stack.push(ast1);
-              break;
-            }
-            tmpVar = new AstVariable(lastRegister++, ast1.min, ast1.max);
-            stack[stack.length - n - 1] = tmpVar;
-            stack.push(tmpVar);
-            instructions.push(new AstVariableDefinition(tmpVar, ast1));
-            break;
-          case "dup":
-            if (stack.length < 1) {
-              return null;
-            }
-            if (
-              typeof code[i + 1] === "number" &&
-              code[i + 2] === "gt" &&
-              code[i + 3] === i + 7 &&
-              code[i + 4] === "jz" &&
-              code[i + 5] === "pop" &&
-              code[i + 6] === code[i + 1]
-            ) {
-              // special case of the commands sequence for the min operation
-              num1 = stack.pop();
-              stack.push(buildMinOperation(num1, code[i + 1]));
-              i += 6;
-              break;
-            }
-            ast1 = stack[stack.length - 1];
-            if (ast1.type === "literal" || ast1.type === "var") {
-              // we don't have to save into intermediate variable a literal or
-              // variable.
-              stack.push(ast1);
-              break;
-            }
-            tmpVar = new AstVariable(lastRegister++, ast1.min, ast1.max);
-            stack[stack.length - 1] = tmpVar;
-            stack.push(tmpVar);
-            instructions.push(new AstVariableDefinition(tmpVar, ast1));
-            break;
-          case "roll":
-            if (stack.length < 2) {
-              return null;
-            }
-            num2 = stack.pop();
-            num1 = stack.pop();
-            if (num2.type !== "literal" || num1.type !== "literal") {
-              // both roll operands must be numbers
-              return null;
-            }
-            j = num2.number;
-            n = num1.number;
-            if (
-              n <= 0 ||
-              !Number.isInteger(n) ||
-              !Number.isInteger(j) ||
-              stack.length < n
-            ) {
-              // ... and integers
-              return null;
-            }
-            j = ((j % n) + n) % n;
-            if (j === 0) {
-              break; // just skipping -- there are nothing to rotate
-            }
-            Array.prototype.push.apply(
-              stack,
-              stack.splice(stack.length - n, n - j)
-            );
-            break;
-          default:
-            return null; // unsupported operator
-        }
+          }
+          tmpVar = new AstVariable(lastRegister++, ast1.min, ast1.max);
+          stack[stack.length - 1] = tmpVar;
+          stack.push(tmpVar);
+          instructions.push(new AstVariableDefinition(tmpVar, ast1));
+          break;
+        case "roll":
+          if (stack.length < 2) {
+            return null;
+          }
+          num2 = stack.pop();
+          num1 = stack.pop();
+          if (num2.type !== "literal" || num1.type !== "literal") {
+            // both roll operands must be numbers
+            return null;
+          }
+          j = num2.number;
+          n = num1.number;
+          if (
+            n <= 0 ||
+            !Number.isInteger(n) ||
+            !Number.isInteger(j) ||
+            stack.length < n
+          ) {
+            // ... and integers
+            return null;
+          }
+          j = ((j % n) + n) % n;
+          if (j === 0) {
+            break; // just skipping -- there are nothing to rotate
+          }
+          stack.push(...stack.splice(stack.length - n, n - j));
+          break;
+        default:
+          return null; // unsupported operator
       }
-
-      if (stack.length !== outputSize) {
-        return null;
-      }
-
-      const result = [];
-      for (const instruction of instructions) {
-        const statementBuilder = new ExpressionBuilderVisitor();
-        instruction.visit(statementBuilder);
-        result.push(statementBuilder.toString());
-      }
-      for (let i = 0, ii = stack.length; i < ii; i++) {
-        const expr = stack[i],
-          statementBuilder = new ExpressionBuilderVisitor();
-        expr.visit(statementBuilder);
-        const min = range[i * 2],
-          max = range[i * 2 + 1];
-        const out = [statementBuilder.toString()];
-        if (min > expr.min) {
-          out.unshift("Math.max(", min, ", ");
-          out.push(")");
-        }
-        if (max < expr.max) {
-          out.unshift("Math.min(", max, ", ");
-          out.push(")");
-        }
-        out.unshift("dest[destOffset + ", i, "] = ");
-        out.push(";");
-        result.push(out.join(""));
-      }
-      return result.join("\n");
     }
-  }
 
-  return PostScriptCompiler;
-})();
+    if (stack.length !== outputSize) {
+      return null;
+    }
+
+    const result = [];
+    for (const instruction of instructions) {
+      const statementBuilder = new ExpressionBuilderVisitor();
+      instruction.visit(statementBuilder);
+      result.push(statementBuilder.toString());
+    }
+    for (let i = 0, ii = stack.length; i < ii; i++) {
+      const expr = stack[i],
+        statementBuilder = new ExpressionBuilderVisitor();
+      expr.visit(statementBuilder);
+      const min = range[i * 2],
+        max = range[i * 2 + 1];
+      const out = [statementBuilder.toString()];
+      if (min > expr.min) {
+        out.unshift("Math.max(", min, ", ");
+        out.push(")");
+      }
+      if (max < expr.max) {
+        out.unshift("Math.min(", max, ", ");
+        out.push(")");
+      }
+      out.unshift("dest[destOffset + ", i, "] = ");
+      out.push(";");
+      result.push(out.join(""));
+    }
+    return result.join("\n");
+  }
+}
 
 export {
   isPDFFunction,
