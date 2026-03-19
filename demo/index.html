@@ -96,6 +96,19 @@
         <h3>Showing a PDF with Links</h3>
         <vcf-pdf-viewer src="pdf-files/links-example.pdf"></vcf-pdf-viewer>
     </div>
+
+    <div>
+            <h3>Showing a PDF with Forms (Interactive - Default)</h3>
+            <vcf-pdf-viewer src="pdf-files/pdf-form-example.pdf"></vcf-pdf-viewer>
+    </div>
+
+    <div>
+        <h3>Showing a PDF with Forms (Flattened Image - Not Interactive)</h3>
+        <vcf-pdf-viewer id="flattened-form-viewer" src="pdf-files/pdf-form-example.pdf"></vcf-pdf-viewer>
+        <script>
+            document.querySelector('#flattened-form-viewer').renderInteractiveForms = false;
+        </script>
+    </div>
     
     <div>
         <h3>Try to Load a File That Can't Be Found</h3>
