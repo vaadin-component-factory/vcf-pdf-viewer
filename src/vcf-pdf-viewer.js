@@ -120,7 +120,6 @@ export class PdfViewerElement extends ResizeMixin(
 
       [part~="thumbnail-view"] {
         position: absolute;
-        width: calc(100% - 60px);
         top: 0;
         bottom: 0;
         padding: 10px 30px 0;
