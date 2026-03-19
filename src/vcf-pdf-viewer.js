@@ -47,6 +47,7 @@ export class PdfViewerElement extends ResizeMixin(
         flex-direction: column;
         width: 100%;
         height: 500px;
+        --pdf-viewer-link-hover-color: rgb(255 255 0);
       }
 
       :host([hidden]) {
@@ -133,6 +134,14 @@ export class PdfViewerElement extends ResizeMixin(
       .page {
         position: relative;
         margin: 0 auto;
+      }
+
+      .canvasWrapper {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
       }
 
       .textLayer {
@@ -234,6 +243,47 @@ export class PdfViewerElement extends ResizeMixin(
 
       [part~="toolbar"].ready ::slotted(.toolbar-zoom.hide-zoom) {
         display: none;
+      }
+
+      /* Annotation layer */
+
+      .annotationLayer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+        transform-origin: 0 0;
+      }
+
+      .annotationLayer section {
+        position: absolute;
+        text-align: initial;
+        pointer-events: auto;
+        box-sizing: border-box;
+        transform-origin: 0 0;
+      }
+
+      .annotationLayer :is(.linkAnnotation, .buttonWidgetAnnotation.pushButton) > a {
+        position: absolute;
+        font-size: 1em;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .annotationLayer :is(.linkAnnotation, .buttonWidgetAnnotation.pushButton):not(.hasBorder) > a:hover {
+        opacity: 0.2;
+        background-color: var(--pdf-viewer-link-hover-color);
+        box-shadow: 0 2px 10px var(--pdf-viewer-link-hover-color);
+      }
+
+      .annotationLayer .linkAnnotation.hasBorder:hover {
+        background-color: color-mix(in srgb, var(--pdf-viewer-link-hover-color) 20%, transparent);
+      }
+
+      .annotationLayer .hasBorder {
+        background-size: 100% 100%;
       }
     `;
   }
