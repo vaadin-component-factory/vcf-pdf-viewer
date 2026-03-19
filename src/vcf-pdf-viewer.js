@@ -248,6 +248,13 @@ export class PdfViewerElement extends ResizeMixin(
       /* Annotation layer */
 
       .annotationLayer {
+        --annotation-unfocused-field-background: url("data:image/svg+xml;charset=UTF-8,<svg width='1px' height='1px' xmlns='http://www.w3.org/2000/svg'><rect width='100%' height='100%' style='fill:rgba(0, 54, 255, 0.13);'/></svg>");
+        --input-focus-border-color: Highlight;
+        --input-focus-outline: 1px solid Canvas;
+        --input-unfocused-border-color: transparent;
+        --input-disabled-border-color: transparent;
+        --input-hover-border-color: black;
+        --link-outline: none;
         position: absolute;
         top: 0;
         left: 0;
@@ -284,6 +291,85 @@ export class PdfViewerElement extends ResizeMixin(
 
       .annotationLayer .hasBorder {
         background-size: 100% 100%;
+      }
+
+      .annotationLayer .textWidgetAnnotation :is(input, textarea),
+      .annotationLayer .choiceWidgetAnnotation select,
+      .annotationLayer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input {
+        background-image: var(--annotation-unfocused-field-background);
+        border: 2px solid var(--input-unfocused-border-color);
+        box-sizing: border-box;
+        font: calc(9px * var(--scale-factor)) sans-serif;
+        height: 100%;
+        margin: 0;
+        vertical-align: top;
+        width: 100%;
+      }
+
+      .annotationLayer .textWidgetAnnotation :is(input, textarea):hover,
+      .annotationLayer .choiceWidgetAnnotation select:hover,
+      .annotationLayer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input:hover {
+        border: 2px solid var(--input-hover-border-color);
+      }
+
+      .annotationLayer .textWidgetAnnotation :is(input, textarea):focus,
+      .annotationLayer .choiceWidgetAnnotation select:focus {
+        background: none;
+        border: 2px solid var(--input-focus-border-color);
+        border-radius: 2px;
+        outline: var(--input-focus-outline);
+      }
+
+      .annotationLayer .buttonWidgetAnnotation.radioButton input {
+        border-radius: 50%;
+      }
+
+      .annotationLayer .textWidgetAnnotation textarea {
+        resize: none;
+      }
+
+      .annotationLayer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input {
+        appearance: none;
+      }
+
+      .annotationLayer .buttonWidgetAnnotation.checkBox input:checked::before,
+      .annotationLayer .buttonWidgetAnnotation.checkBox input:checked::after,
+      .annotationLayer .buttonWidgetAnnotation.radioButton input:checked::before {
+        background-color: CanvasText;
+        content: "";
+        display: block;
+        position: absolute;
+      }
+
+      .annotationLayer .buttonWidgetAnnotation.checkBox input:checked::before,
+      .annotationLayer .buttonWidgetAnnotation.checkBox input:checked::after {
+        height: 80%;
+        left: 45%;
+        width: 1px;
+      }
+
+      .annotationLayer .buttonWidgetAnnotation.checkBox input:checked::before {
+        transform: rotate(45deg);
+      }
+
+      .annotationLayer .buttonWidgetAnnotation.checkBox input:checked::after {
+        transform: rotate(-45deg);
+      }
+
+      .annotationLayer .buttonWidgetAnnotation.radioButton input:checked::before {
+        border-radius: 50%;
+        height: 50%;
+        left: 25%;
+        top: 25%;
+        width: 50%;
+      }
+
+      .annotationLayer .textWidgetAnnotation :is(input, textarea)[disabled],
+      .annotationLayer .choiceWidgetAnnotation select[disabled],
+      .annotationLayer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input[disabled] {
+        background: none;
+        border: 2px solid var(--input-disabled-border-color);
+        cursor: not-allowed;
       }
     `;
   }
@@ -792,7 +878,9 @@ export class PdfViewerElement extends ResizeMixin(
         linkService: this.__linkService,
         renderingQueue: pdfRenderingQueue,
         l10n: l10n,
-        renderInteractiveForms: this.renderInteractiveForms,
+        annotationMode: this.renderInteractiveForms
+          ? pdfjsLib.AnnotationMode.ENABLE_FORMS
+          : pdfjsLib.AnnotationMode.ENABLE,
       });
 
       this.__linkService.setViewer(this.__viewer);
