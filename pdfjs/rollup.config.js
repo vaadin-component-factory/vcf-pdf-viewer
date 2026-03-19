@@ -61,7 +61,8 @@ const config = [
           // because the static assets path is not what it expects.
           // By replacing the fetch call with the actual string content,
           // the translations are bundled directly into the JS.
-          'await fetchData(\n            new URL("../l10n/en-US/viewer.ftl", window.location.href),\n            /* type = */ "text"\n          )': JSON.stringify(defaultFtlContent)
+          'await fetchData(\n            new URL("../l10n/en-US/viewer.ftl", window.location.href),\n            /* type = */ "text"\n          )': JSON.stringify(defaultFtlContent),
+          'await fetchData(\r\n            new URL("../l10n/en-US/viewer.ftl", window.location.href),\r\n            /* type = */ "text"\r\n          )': JSON.stringify(defaultFtlContent)
         }
       }),
       resolve({
