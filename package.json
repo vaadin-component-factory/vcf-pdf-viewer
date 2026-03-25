@@ -55,6 +55,7 @@
     "@rollup/plugin-commonjs": "^21.0.1",
     "@rollup/plugin-node-resolve": "^13.0.6",
     "@vaadin/polymer-legacy-adapter": "^24.1.15",
+    "@web/dev-server": "^0.4.6",
     "@webcomponents/webcomponentsjs": "^2.6.0",
     "babel-loader": "^8.2.3",
     "html-webpack-plugin": "^5.5.0",
@@ -72,7 +73,7 @@
   "scripts": {
     "test": "wct",
     "lint": "eslint src/*.js",
-    "start": "polymer serve -o",
+    "start": "web-dev-server --node-resolve --open demo/",
     "publish": "node publish.js",
     "build": "rimraf dist && rollup -c pdfjs/rollup.config.js"
   }
