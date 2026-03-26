@@ -27,7 +27,12 @@ function validateRangeRequestCapabilities({
   rangeChunkSize,
   disableRange,
 }) {
-  assert(rangeChunkSize > 0, "Range chunk size must be larger than zero");
+  if (typeof PDFJSDev === "undefined" || PDFJSDev.test("TESTING")) {
+    assert(
+      Number.isInteger(rangeChunkSize) && rangeChunkSize > 0,
+      "rangeChunkSize must be an integer larger than zero."
+    );
+  }
   const returnValues = {
     allowRangeRequests: false,
     suggestedLength: undefined,
@@ -69,7 +74,7 @@ function extractFilenameFromHeader(getResponseHeader) {
     if (filename.includes("%")) {
       try {
         filename = decodeURIComponent(filename);
-      } catch (ex) {}
+      } catch {}
     }
     if (isPdfFile(filename)) {
       return filename;

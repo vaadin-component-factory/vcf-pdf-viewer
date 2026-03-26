@@ -16,7 +16,7 @@
 // In mozilla-central, this file is loaded as non-module script,
 // so it mustn't have any dependencies.
 
-class SandboxSupportBase {
+export class SandboxSupportBase {
   /**
    * @param {DOMWindow} - win
    */
@@ -29,8 +29,10 @@ class SandboxSupportBase {
   }
 
   destroy() {
-    this.commFunc = null;
-    this.timeoutIds.forEach(([_, id]) => this.win.clearTimeout(id));
+    this.commFun = null;
+    for (const id of this.timeoutIds.values()) {
+      this.win.clearTimeout(id);
+    }
     this.timeoutIds = null;
   }
 
@@ -79,6 +81,13 @@ class SandboxSupportBase {
         ) {
           return;
         }
+
+        if (callbackId === 0) {
+          // This callbackId corresponds to the one used for userActivation.
+          // So here, we cancel the last userActivation.
+          this.win.clearTimeout(this.timeoutIds.get(callbackId));
+        }
+
         const id = this.win.setTimeout(() => {
           this.timeoutIds.delete(callbackId);
           this.callSandboxFunction("timeoutCb", {
@@ -88,9 +97,9 @@ class SandboxSupportBase {
         }, nMilliseconds);
         this.timeoutIds.set(callbackId, id);
       },
-      clearTimeout: id => {
-        this.win.clearTimeout(this.timeoutIds.get(id));
-        this.timeoutIds.delete(id);
+      clearTimeout: callbackId => {
+        this.win.clearTimeout(this.timeoutIds.get(callbackId));
+        this.timeoutIds.delete(callbackId);
       },
       setInterval: (callbackId, nMilliseconds) => {
         if (
@@ -107,9 +116,9 @@ class SandboxSupportBase {
         }, nMilliseconds);
         this.timeoutIds.set(callbackId, id);
       },
-      clearInterval: id => {
-        this.win.clearInterval(this.timeoutIds.get(id));
-        this.timeoutIds.delete(id);
+      clearInterval: callbackId => {
+        this.win.clearInterval(this.timeoutIds.get(callbackId));
+        this.timeoutIds.delete(callbackId);
       },
       alert: cMsg => {
         if (typeof cMsg !== "string") {
@@ -171,11 +180,4 @@ class SandboxSupportBase {
       }
     };
   }
-}
-
-if (typeof PDFJSDev === "undefined" || !PDFJSDev.test("MOZCENTRAL")) {
-  exports.SandboxSupportBase = SandboxSupportBase;
-} else {
-  /* eslint-disable-next-line no-unused-vars, no-var */
-  var EXPORTED_SYMBOLS = ["SandboxSupportBase"];
 }

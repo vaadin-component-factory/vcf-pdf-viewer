@@ -14,9 +14,8 @@
  */
 
 import { $buildXFAObject, NamespaceIds } from "./namespaces.js";
+import { $content, $finalize } from "./symbol_utils.js";
 import {
-  $content,
-  $finalize,
   ContentObject,
   IntegerObject,
   Option01,
@@ -1005,7 +1004,7 @@ class Rename extends ContentObject {
     // is no colon.
     if (
       this[$content].toLowerCase().startsWith("xml") ||
-      this[$content].match(new RegExp("[\\p{L}_][\\p{L}\\d._\\p{M}-]*", "u"))
+      new RegExp("[\\p{L}_][\\p{L}\\d._\\p{M}-]*", "u").test(this[$content])
     ) {
       warn("XFA - Rename: invalid XFA name");
     }

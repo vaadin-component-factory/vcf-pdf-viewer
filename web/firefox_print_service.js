@@ -13,9 +13,13 @@
  * limitations under the License.
  */
 
-import { RenderingCancelledException, shadow } from "../src/pdf.js";
+import {
+  AnnotationMode,
+  PixelsPerInch,
+  RenderingCancelledException,
+  shadow,
+} from "pdfjs-lib";
 import { getXfaHtmlForPrinting } from "./print_utils.js";
-import { PDFPrintServiceFactory } from "./app.js";
 
 // Creates a placeholder with div and canvas with right size for the page.
 function composePage(
@@ -24,19 +28,20 @@ function composePage(
   size,
   printContainer,
   printResolution,
-  optionalContentConfigPromise
+  optionalContentConfigPromise,
+  printAnnotationStoragePromise
 ) {
   const canvas = document.createElement("canvas");
 
   // The size of the canvas in pixels for printing.
-  const PRINT_UNITS = printResolution / 72.0;
+  const PRINT_UNITS = printResolution / PixelsPerInch.PDF;
   canvas.width = Math.floor(size.width * PRINT_UNITS);
   canvas.height = Math.floor(size.height * PRINT_UNITS);
 
   const canvasWrapper = document.createElement("div");
   canvasWrapper.className = "printedPage";
-  canvasWrapper.appendChild(canvas);
-  printContainer.appendChild(canvasWrapper);
+  canvasWrapper.append(canvas);
+  printContainer.append(canvasWrapper);
 
   // A callback for a given page may be executed multiple times for different
   // print operations (think of changing the print settings in the browser).
@@ -56,9 +61,12 @@ function composePage(
     ctx.restore();
 
     let thisRenderTask = null;
-    pdfDocument
-      .getPage(pageNumber)
-      .then(function (pdfPage) {
+
+    Promise.all([
+      pdfDocument.getPage(pageNumber),
+      printAnnotationStoragePromise,
+    ])
+      .then(function ([pdfPage, printAnnotationStorage]) {
         if (currentRenderTask) {
           currentRenderTask.cancel();
           currentRenderTask = null;
@@ -68,8 +76,9 @@ function composePage(
           transform: [PRINT_UNITS, 0, 0, PRINT_UNITS, 0, 0],
           viewport: pdfPage.getViewport({ scale: 1, rotation: size.rotation }),
           intent: "print",
-          includeAnnotationStorage: true,
+          annotationMode: AnnotationMode.ENABLE_STORAGE,
           optionalContentConfigPromise,
+          printAnnotationStorage,
         };
         currentRenderTask = thisRenderTask = pdfPage.render(renderContext);
         return thisRenderTask.promise;
@@ -104,22 +113,25 @@ function composePage(
   };
 }
 
-function FirefoxPrintService(
-  pdfDocument,
-  pagesOverview,
-  printContainer,
-  printResolution,
-  optionalContentConfigPromise = null
-) {
-  this.pdfDocument = pdfDocument;
-  this.pagesOverview = pagesOverview;
-  this.printContainer = printContainer;
-  this._printResolution = printResolution || 150;
-  this._optionalContentConfigPromise =
-    optionalContentConfigPromise || pdfDocument.getOptionalContentConfig();
-}
+class FirefoxPrintService {
+  constructor({
+    pdfDocument,
+    pagesOverview,
+    printContainer,
+    printResolution,
+    printAnnotationStoragePromise = null,
+  }) {
+    this.pdfDocument = pdfDocument;
+    this.pagesOverview = pagesOverview;
+    this.printContainer = printContainer;
+    this._printResolution = printResolution || 150;
+    this._optionalContentConfigPromise = pdfDocument.getOptionalContentConfig({
+      intent: "print",
+    });
+    this._printAnnotationStoragePromise =
+      printAnnotationStoragePromise || Promise.resolve();
+  }
 
-FirefoxPrintService.prototype = {
   layout() {
     const {
       pdfDocument,
@@ -127,10 +139,28 @@ FirefoxPrintService.prototype = {
       printContainer,
       _printResolution,
       _optionalContentConfigPromise,
+      _printAnnotationStoragePromise,
     } = this;
 
     const body = document.querySelector("body");
     body.setAttribute("data-pdfjsprinting", true);
+
+    const { width, height } = this.pagesOverview[0];
+    const hasEqualPageSizes = this.pagesOverview.every(
+      size => size.width === width && size.height === height
+    );
+    if (!hasEqualPageSizes) {
+      console.warn(
+        "Not all pages have the same size. The printed result may be incorrect!"
+      );
+    }
+
+    // Insert a @page + size rule to make sure that the page size is correctly
+    // set. Note that we assume that all pages have the same size, because
+    // variable-size pages are scaled down to the initial page size in Firefox.
+    this.pageStyleSheet = document.createElement("style");
+    this.pageStyleSheet.textContent = `@page { size: ${width}pt ${height}pt;}`;
+    body.append(this.pageStyleSheet);
 
     if (pdfDocument.isPureXfa) {
       getXfaHtmlForPrinting(printContainer, pdfDocument);
@@ -144,42 +174,37 @@ FirefoxPrintService.prototype = {
         pagesOverview[i],
         printContainer,
         _printResolution,
-        _optionalContentConfigPromise
+        _optionalContentConfigPromise,
+        _printAnnotationStoragePromise
       );
     }
-  },
+  }
 
   destroy() {
     this.printContainer.textContent = "";
 
     const body = document.querySelector("body");
     body.removeAttribute("data-pdfjsprinting");
-  },
-};
 
-PDFPrintServiceFactory.instance = {
-  get supportsPrinting() {
+    if (this.pageStyleSheet) {
+      this.pageStyleSheet.remove();
+      this.pageStyleSheet = null;
+    }
+  }
+}
+
+/**
+ * @implements {IPDFPrintServiceFactory}
+ */
+class PDFPrintServiceFactory {
+  static get supportsPrinting() {
     const canvas = document.createElement("canvas");
-    const value = "mozPrintCallback" in canvas;
+    return shadow(this, "supportsPrinting", "mozPrintCallback" in canvas);
+  }
 
-    return shadow(this, "supportsPrinting", value);
-  },
+  static createPrintService(params) {
+    return new FirefoxPrintService(params);
+  }
+}
 
-  createPrintService(
-    pdfDocument,
-    pagesOverview,
-    printContainer,
-    printResolution,
-    optionalContentConfigPromise
-  ) {
-    return new FirefoxPrintService(
-      pdfDocument,
-      pagesOverview,
-      printContainer,
-      printResolution,
-      optionalContentConfigPromise
-    );
-  },
-};
-
-export { FirefoxPrintService };
+export { PDFPrintServiceFactory };

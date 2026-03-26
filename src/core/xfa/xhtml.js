@@ -20,19 +20,26 @@ import {
   $content,
   $extra,
   $getChildren,
+  $getParent,
   $globalData,
   $nodeName,
   $onText,
   $pushGlyphs,
   $text,
   $toHTML,
-  XmlObject,
-} from "./xfa_object.js";
+} from "./symbol_utils.js";
 import { $buildXFAObject, NamespaceIds } from "./namespaces.js";
-import { fixTextIndent, measureToString, setFontFamily } from "./html_utils.js";
+import {
+  fixTextIndent,
+  fixURL,
+  measureToString,
+  setFontFamily,
+} from "./html_utils.js";
 import { getMeasurement, HTMLResult, stripQuotes } from "./utils.js";
+import { XmlObject } from "./xfa_object.js";
 
 const XHTML_NS_ID = NamespaceIds.xhtml.id;
+const $richText = Symbol();
 
 const VALID_STYLES = new Set([
   "color",
@@ -100,12 +107,14 @@ const StyleMapping = new Map([
   ["margin-top", value => measureToString(getMeasurement(value))],
   ["text-indent", value => measureToString(getMeasurement(value))],
   ["font-family", value => value],
+  ["vertical-align", value => measureToString(getMeasurement(value))],
 ]);
 
 const spacesRegExp = /\s+/g;
 const crlfRegExp = /[\r\n]+/g;
+const crlfForRichTextRegExp = /\r\n?/g;
 
-function mapStyle(styleStr, fontFinder) {
+function mapStyle(styleStr, node, richText) {
   const style = Object.create(null);
   if (!styleStr) {
     return style;
@@ -118,18 +127,13 @@ function mapStyle(styleStr, fontFinder) {
     }
     let newValue = value;
     if (mapping) {
-      if (typeof mapping === "string") {
-        newValue = mapping;
-      } else {
-        newValue = mapping(value, original);
-      }
+      newValue =
+        typeof mapping === "string" ? mapping : mapping(value, original);
     }
     if (key.endsWith("scale")) {
-      if (style.transform) {
-        style.transform = `${style[key]} ${newValue}`;
-      } else {
-        style.transform = newValue;
-      }
+      style.transform = style.transform
+        ? `${style[key]} ${newValue}`
+        : newValue;
     } else {
       style[key.replaceAll(/-([a-zA-Z])/g, (_, x) => x.toUpperCase())] =
         newValue;
@@ -144,9 +148,37 @@ function mapStyle(styleStr, fontFinder) {
         posture: style.fontStyle || "normal",
         size: original.fontSize || 0,
       },
-      fontFinder,
+      node,
+      node[$globalData].fontFinder,
       style
     );
+  }
+
+  if (
+    richText &&
+    style.verticalAlign &&
+    style.verticalAlign !== "0px" &&
+    style.fontSize
+  ) {
+    // A non-zero verticalAlign means that we've a sub/super-script and
+    // consequently the font size must be decreased.
+    // https://www.adobe.com/content/dam/acom/en/devnet/pdf/pdfs/PDF32000_2008.pdf#G11.2097514
+    // And the two following factors to position the scripts have been
+    // found here:
+    // https://en.wikipedia.org/wiki/Subscript_and_superscript#Desktop_publishing
+    const SUB_SUPER_SCRIPT_FACTOR = 0.583;
+    const VERTICAL_FACTOR = 0.333;
+    const fontSize = getMeasurement(style.fontSize);
+    style.fontSize = measureToString(fontSize * SUB_SUPER_SCRIPT_FACTOR);
+    style.verticalAlign = measureToString(
+      Math.sign(getMeasurement(style.verticalAlign)) *
+        fontSize *
+        VERTICAL_FACTOR
+    );
+  }
+
+  if (richText && style.fontSize) {
+    style.fontSize = `calc(${style.fontSize} * var(--scale-factor))`;
   }
 
   fixTextIndent(style);
@@ -179,6 +211,7 @@ const NoWhites = new Set(["body", "html"]);
 class XhtmlObject extends XmlObject {
   constructor(attributes, name) {
     super(XHTML_NS_ID, name);
+    this[$richText] = false;
     this.style = attributes.style || "";
   }
 
@@ -191,11 +224,16 @@ class XhtmlObject extends XmlObject {
     return !NoWhites.has(this[$nodeName]);
   }
 
-  [$onText](str) {
-    str = str.replace(crlfRegExp, "");
-    if (!this.style.includes("xfa-spacerun:yes")) {
-      str = str.replace(spacesRegExp, " ");
+  [$onText](str, richText = false) {
+    if (!richText) {
+      str = str.replaceAll(crlfRegExp, "");
+      if (!this.style.includes("xfa-spacerun:yes")) {
+        str = str.replaceAll(spacesRegExp, " ");
+      }
+    } else {
+      this[$richText] = true;
     }
+
     if (str) {
       this[$content] += str;
     }
@@ -305,14 +343,23 @@ class XhtmlObject extends XmlObject {
       return HTMLResult.EMPTY;
     }
 
+    let value;
+    if (this[$richText]) {
+      value = this[$content]
+        ? this[$content].replaceAll(crlfForRichTextRegExp, "\n")
+        : undefined;
+    } else {
+      value = this[$content] || undefined;
+    }
+
     return HTMLResult.success({
       name: this[$nodeName],
       attributes: {
         href: this.href,
-        style: mapStyle(this.style, this[$globalData].fontFinder),
+        style: mapStyle(this.style, this, this[$richText]),
       },
       children,
-      value: this[$content] || "",
+      value,
     });
   }
 }
@@ -320,7 +367,7 @@ class XhtmlObject extends XmlObject {
 class A extends XhtmlObject {
   constructor(attributes) {
     super(attributes, "a");
-    this.href = attributes.href || "";
+    this.href = fixURL(attributes.href) || "";
   }
 }
 
@@ -398,7 +445,7 @@ class Html extends XhtmlObject {
 
     if (children.length === 1) {
       const child = children[0];
-      if (child.attributes && child.attributes.class.includes("xfaRich")) {
+      if (child.attributes?.class.includes("xfaRich")) {
         return HTMLResult.success(child);
       }
     }
@@ -451,6 +498,10 @@ class P extends XhtmlObject {
   }
 
   [$text]() {
+    const siblings = this[$getParent]()[$getChildren]();
+    if (siblings.at(-1) === this) {
+      return super[$text]();
+    }
     return super[$text]() + "\n";
   }
 }

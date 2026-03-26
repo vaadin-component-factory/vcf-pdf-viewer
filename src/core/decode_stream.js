@@ -73,7 +73,7 @@ class DecodeStream extends BaseStream {
     return this.buffer[this.pos++];
   }
 
-  getBytes(length, forceClamped = false) {
+  getBytes(length, ignoreColorSpace = false) {
     const pos = this.pos;
     let end;
 
@@ -82,7 +82,7 @@ class DecodeStream extends BaseStream {
       end = pos + length;
 
       while (!this.eof && this.bufferLength < end) {
-        this.readBlock();
+        this.readBlock(ignoreColorSpace);
       }
       const bufEnd = this.bufferLength;
       if (end > bufEnd) {
@@ -90,17 +90,13 @@ class DecodeStream extends BaseStream {
       }
     } else {
       while (!this.eof) {
-        this.readBlock();
+        this.readBlock(ignoreColorSpace);
       }
       end = this.bufferLength;
     }
 
     this.pos = end;
-    const subarray = this.buffer.subarray(pos, end);
-    // `this.buffer` is either a `Uint8Array` or `Uint8ClampedArray` here.
-    return forceClamped && !(subarray instanceof Uint8ClampedArray)
-      ? new Uint8ClampedArray(subarray)
-      : subarray;
+    return this.buffer.subarray(pos, end);
   }
 
   reset() {
@@ -127,7 +123,7 @@ class DecodeStream extends BaseStream {
 }
 
 class StreamsSequenceStream extends DecodeStream {
-  constructor(streams) {
+  constructor(streams, onError = null) {
     let maybeLength = 0;
     for (const stream of streams) {
       maybeLength +=
@@ -138,6 +134,7 @@ class StreamsSequenceStream extends DecodeStream {
     super(maybeLength);
 
     this.streams = streams;
+    this._onError = onError;
   }
 
   readBlock() {
@@ -147,7 +144,16 @@ class StreamsSequenceStream extends DecodeStream {
       return;
     }
     const stream = streams.shift();
-    const chunk = stream.getBytes();
+    let chunk;
+    try {
+      chunk = stream.getBytes();
+    } catch (reason) {
+      if (this._onError) {
+        this._onError(reason, stream.dict?.objId);
+        return;
+      }
+      throw reason;
+    }
     const bufferLength = this.bufferLength;
     const newLength = bufferLength + chunk.length;
     const buffer = this.ensureBuffer(newLength);
