@@ -12,72 +12,106 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/* globals __non_webpack_require__ */
 
 import {
   BaseCanvasFactory,
   BaseCMapReaderFactory,
+  BaseFilterFactory,
   BaseStandardFontDataFactory,
 } from "./base_factory.js";
-import { isNodeJS } from "../shared/is_node.js";
-import { unreachable } from "../shared/util.js";
+import { isNodeJS, warn } from "../shared/util.js";
 
-let NodeCanvasFactory = class {
-  constructor() {
-    unreachable("Not implemented: NodeCanvasFactory");
-  }
+if (typeof PDFJSDev !== "undefined" && PDFJSDev.test("MOZCENTRAL")) {
+  throw new Error(
+    'Module "./node_utils.js" shall not be used with MOZCENTRAL builds.'
+  );
+}
+
+let fs, canvas, path2d;
+if (isNodeJS) {
+  // Native packages.
+  fs = await __non_webpack_import__("fs");
+  // Optional, third-party, packages.
+  try {
+    canvas = await __non_webpack_import__("canvas");
+  } catch {}
+  try {
+    path2d = await __non_webpack_import__("path2d");
+  } catch {}
+}
+
+if (typeof PDFJSDev !== "undefined" && !PDFJSDev.test("SKIP_BABEL")) {
+  (function checkDOMMatrix() {
+    if (globalThis.DOMMatrix || !isNodeJS) {
+      return;
+    }
+    const DOMMatrix = canvas?.DOMMatrix;
+
+    if (DOMMatrix) {
+      globalThis.DOMMatrix = DOMMatrix;
+    } else {
+      warn("Cannot polyfill `DOMMatrix`, rendering may be broken.");
+    }
+  })();
+
+  (function checkPath2D() {
+    if (globalThis.Path2D || !isNodeJS) {
+      return;
+    }
+    const CanvasRenderingContext2D = canvas?.CanvasRenderingContext2D;
+    const applyPath2DToCanvasRenderingContext =
+      path2d?.applyPath2DToCanvasRenderingContext;
+    const Path2D = path2d?.Path2D;
+
+    if (
+      CanvasRenderingContext2D &&
+      applyPath2DToCanvasRenderingContext &&
+      Path2D
+    ) {
+      applyPath2DToCanvasRenderingContext(CanvasRenderingContext2D);
+      globalThis.Path2D = Path2D;
+    } else {
+      warn("Cannot polyfill `Path2D`, rendering may be broken.");
+    }
+  })();
+}
+
+const fetchData = function (url) {
+  return fs.promises.readFile(url).then(data => new Uint8Array(data));
 };
 
-let NodeCMapReaderFactory = class {
-  constructor() {
-    unreachable("Not implemented: NodeCMapReaderFactory");
+class NodeFilterFactory extends BaseFilterFactory {}
+
+class NodeCanvasFactory extends BaseCanvasFactory {
+  /**
+   * @ignore
+   */
+  _createCanvas(width, height) {
+    return canvas.createCanvas(width, height);
   }
-};
+}
 
-let NodeStandardFontDataFactory = class {
-  constructor() {
-    unreachable("Not implemented: NodeStandardFontDataFactory");
+class NodeCMapReaderFactory extends BaseCMapReaderFactory {
+  /**
+   * @ignore
+   */
+  _fetchData(url, compressionType) {
+    return fetchData(url).then(data => ({ cMapData: data, compressionType }));
   }
-};
+}
 
-if ((typeof PDFJSDev === "undefined" || PDFJSDev.test("GENERIC")) && isNodeJS) {
-  const fetchData = function (url) {
-    return new Promise((resolve, reject) => {
-      const fs = __non_webpack_require__("fs");
-      fs.readFile(url, (error, data) => {
-        if (error || !data) {
-          reject(new Error(error));
-          return;
-        }
-        resolve(new Uint8Array(data));
-      });
-    });
-  };
-
-  NodeCanvasFactory = class extends BaseCanvasFactory {
-    _createCanvas(width, height) {
-      const Canvas = __non_webpack_require__("canvas");
-      return Canvas.createCanvas(width, height);
-    }
-  };
-
-  NodeCMapReaderFactory = class extends BaseCMapReaderFactory {
-    _fetchData(url, compressionType) {
-      return fetchData(url).then(data => {
-        return { cMapData: data, compressionType };
-      });
-    }
-  };
-
-  NodeStandardFontDataFactory = class extends BaseStandardFontDataFactory {
-    _fetchData(url) {
-      return fetchData(url);
-    }
-  };
+class NodeStandardFontDataFactory extends BaseStandardFontDataFactory {
+  /**
+   * @ignore
+   */
+  _fetchData(url) {
+    return fetchData(url);
+  }
 }
 
 export {
   NodeCanvasFactory,
   NodeCMapReaderFactory,
+  NodeFilterFactory,
   NodeStandardFontDataFactory,
 };

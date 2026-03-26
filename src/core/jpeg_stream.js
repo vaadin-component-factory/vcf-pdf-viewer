@@ -14,7 +14,7 @@
  */
 
 import { DecodeStream } from "./decode_stream.js";
-import { isDict } from "./primitives.js";
+import { Dict } from "./primitives.js";
 import { JpegImage } from "./jpg.js";
 import { shadow } from "../shared/util.js";
 
@@ -62,9 +62,9 @@ class JpegStream extends DecodeStream {
     };
 
     // Checking if values need to be transformed before conversion.
-    const decodeArr = this.dict.getArray("Decode", "D");
-    if (this.forceRGB && Array.isArray(decodeArr)) {
-      const bitsPerComponent = this.dict.get("BitsPerComponent") || 8;
+    const decodeArr = this.dict.getArray("D", "Decode");
+    if ((this.forceRGBA || this.forceRGB) && Array.isArray(decodeArr)) {
+      const bitsPerComponent = this.dict.get("BPC", "BitsPerComponent") || 8;
       const decodeArrLength = decodeArr.length;
       const transform = new Int32Array(decodeArrLength);
       let transformNeeded = false;
@@ -81,7 +81,7 @@ class JpegStream extends DecodeStream {
       }
     }
     // Fetching the 'ColorTransform' entry, if it exists.
-    if (isDict(this.params)) {
+    if (this.params instanceof Dict) {
       const colorTransform = this.params.get("ColorTransform");
       if (Number.isInteger(colorTransform)) {
         jpegOptions.colorTransform = colorTransform;
@@ -93,6 +93,7 @@ class JpegStream extends DecodeStream {
     const data = jpegImage.getData({
       width: this.drawWidth,
       height: this.drawHeight,
+      forceRGBA: this.forceRGBA,
       forceRGB: this.forceRGB,
       isSourcePDF: true,
     });

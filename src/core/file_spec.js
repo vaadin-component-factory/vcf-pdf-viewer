@@ -13,8 +13,9 @@
  * limitations under the License.
  */
 
-import { isDict, isStream } from "./primitives.js";
 import { stringToPDFString, warn } from "../shared/util.js";
+import { BaseStream } from "./base_stream.js";
+import { Dict } from "./primitives.js";
 
 function pickPlatformItem(dict) {
   // Look for the filename in this order:
@@ -41,8 +42,10 @@ function pickPlatformItem(dict) {
  * collections attributes and related files (/RF)
  */
 class FileSpec {
-  constructor(root, xref) {
-    if (!root || !isDict(root)) {
+  #contentAvailable = false;
+
+  constructor(root, xref, skipContent = false) {
+    if (!(root instanceof Dict)) {
       return;
     }
     this.xref = xref;
@@ -56,26 +59,28 @@ class FileSpec {
     if (root.has("RF")) {
       warn("Related file specifications are not supported");
     }
-    this.contentAvailable = true;
-    if (!root.has("EF")) {
-      this.contentAvailable = false;
-      warn("Non-embedded file specifications are not supported");
+    if (!skipContent) {
+      if (root.has("EF")) {
+        this.#contentAvailable = true;
+      } else {
+        warn("Non-embedded file specifications are not supported");
+      }
     }
   }
 
   get filename() {
     if (!this._filename && this.root) {
       const filename = pickPlatformItem(this.root) || "unnamed";
-      this._filename = stringToPDFString(filename) // lgtm [js/double-escaping]
-        .replace(/\\\\/g, "\\")
-        .replace(/\\\//g, "/")
-        .replace(/\\/g, "/");
+      this._filename = stringToPDFString(filename)
+        .replaceAll("\\\\", "\\")
+        .replaceAll("\\/", "/")
+        .replaceAll("\\", "/");
     }
     return this._filename;
   }
 
   get content() {
-    if (!this.contentAvailable) {
+    if (!this.#contentAvailable) {
       return null;
     }
     if (!this.contentRef && this.root) {
@@ -84,7 +89,7 @@ class FileSpec {
     let content = null;
     if (this.contentRef) {
       const fileObj = this.xref.fetchIfRef(this.contentRef);
-      if (fileObj && isStream(fileObj)) {
+      if (fileObj instanceof BaseStream) {
         content = fileObj.getBytes();
       } else {
         warn(
