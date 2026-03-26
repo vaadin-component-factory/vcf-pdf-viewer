@@ -12,13 +12,14 @@ import '@vaadin/tooltip';
 
 import * as pdfjsLib from '../pdfjs/dist/pdf';
 import * as pdfjsViewer from '../pdfjs/dist/pdf_viewer';
-import * as pdfUtils from '../pdfjs/dist/ui_utils'
+import * as pdfUtils from '../pdfjs/dist/ui_utils';
+import { EventBus } from "../pdfjs/dist/event_utils";
 import * as pdfjsLinkService from '../pdfjs/dist/pdf_link_service';
 import * as pdfjsThumbnailViewer from '../pdfjs/dist/pdf_thumbnail_viewer';
 import * as pdfjsRenderingQueue from '../pdfjs/dist/pdf_rendering_queue';
-import { NullL10n } from '../pdfjs/dist/l10n_utils';
-import * as pdfjsWorker from '../pdfjs/dist/worker';
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+import { GenericL10n } from "../pdfjs/dist/genericl10n";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = "../pdfjs/dist/worker.js";
 
 /**
  * `<vcf-pdf-viewer>` is a Web Component for rendering PDF files without
@@ -119,7 +120,6 @@ class PdfViewerElement extends
 
             [part~="thumbnail-view"] {
                 position: absolute;
-                width: calc(100% - 60px);
                 top: 0;
                 bottom: 0;
                 padding: 10px 30px 0;
@@ -213,7 +213,8 @@ class PdfViewerElement extends
             }
 
             .thumbnail {
-                margin: 0 10px 5px;
+                margin: 5px;
+                padding: 7px 7px 3px 7px;
             }
 
             .thumbnailImage {
@@ -224,13 +225,8 @@ class PdfViewerElement extends
                 background-color: rgba(255, 255, 255, 1);
                 background-clip: content-box;
             }
-
-            .thumbnailSelectionRing {
-                border-radius: 2px;
-                padding: 7px;
-            }
-
-            .thumbnail.selected > .thumbnailSelectionRing {
+          
+            .thumbnail.selected {
                 background-color: rgba(0, 0, 0, 0.15);
             }
 
@@ -287,7 +283,7 @@ class PdfViewerElement extends
     }
 
     static get version() {
-        return '3.1.0';
+        return '3.2.0';
     }
 
     static get properties() {
@@ -602,6 +598,10 @@ class PdfViewerElement extends
     ready() {
         super.ready();
 
+        // Required by PDF.js annotation editor: --freetext-line-height must match
+        // the LINE_FACTOR constant (1.35) defined in src/shared/util.js
+        document.documentElement.style.setProperty('--freetext-line-height', '1.35');
+
         this._addToolbarButtons();
 
         this.$.viewerContainer.addEventListener('focus', e => this.__setFocused(true), true);
@@ -616,12 +616,12 @@ class PdfViewerElement extends
         });
 
         // options
-        const eventBus = new pdfUtils.EventBus();
+        const eventBus = new EventBus();
         this.__linkService = new pdfjsLinkService.PDFLinkService({
             eventBus,
         });
         var pdfRenderingQueue = new pdfjsRenderingQueue.PDFRenderingQueue();
-        var l10n = NullL10n;
+        var l10n = new GenericL10n(navigator.language || 'en-US');
 
         // pdfViewer
         this.__viewer = new pdfjsViewer.PDFViewer({
@@ -888,7 +888,7 @@ class PdfViewerElement extends
         const pagesCount = this.__totalPages;
         for (let i = 0; i < pagesCount; i++) {
             const pageView = this.__viewer.getPageView(i);
-            if (pageView.renderingState === pdfjsRenderingQueue.RenderingStates.FINISHED) {
+            if (pageView.renderingState === pdfUtils.RenderingStates.FINISHED) {
                 const thumbnailView = this.__thumbnailViewer.getThumbnail(i);
                 thumbnailView.setImage(pageView);
             } else {

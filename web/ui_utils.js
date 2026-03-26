@@ -13,9 +13,9 @@
  * limitations under the License.
  */
 
-const CSS_UNITS = 96.0 / 72.0;
 const DEFAULT_SCALE_VALUE = "auto";
 const DEFAULT_SCALE = 1.0;
+const DEFAULT_SCALE_DELTA = 1.1;
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 10.0;
 const UNKNOWN_SCALE = 0;
@@ -23,7 +23,12 @@ const MAX_AUTO_SCALE = 1.25;
 const SCROLLBAR_PADDING = 40;
 const VERTICAL_PADDING = 5;
 
-const LOADINGBAR_END_OFFSET_VAR = "--loadingBar-end-offset";
+const RenderingStates = {
+  INITIAL: 0,
+  RUNNING: 1,
+  PAUSED: 2,
+  FINISHED: 3,
+};
 
 const PresentationModeState = {
   UNKNOWN: 0,
@@ -41,15 +46,10 @@ const SidebarView = {
   LAYERS: 4,
 };
 
-const RendererType = {
-  CANVAS: "canvas",
-  SVG: "svg",
-};
-
 const TextLayerMode = {
   DISABLE: 0,
   ENABLE: 1,
-  ENABLE_ENHANCE: 2,
+  ENABLE_PERMISSIONS: 2,
 };
 
 const ScrollMode = {
@@ -57,6 +57,7 @@ const ScrollMode = {
   VERTICAL: 0, // Default value.
   HORIZONTAL: 1,
   WRAPPED: 2,
+  PAGE: 3,
 };
 
 const SpreadMode = {
@@ -66,35 +67,48 @@ const SpreadMode = {
   EVEN: 2,
 };
 
+const CursorTool = {
+  SELECT: 0, // The default value.
+  HAND: 1,
+  ZOOM: 2,
+};
+
 // Used by `PDFViewerApplication`, and by the API unit-tests.
 const AutoPrintRegExp = /\bprint\s*\(/;
 
 /**
- * Returns scale factor for the canvas. It makes sense for the HiDPI displays.
- * @returns {Object} The object with horizontal (sx) and vertical (sy)
- *                   scales. The scaled property is set to false if scaling is
- *                   not required, true otherwise.
+ * Scale factors for the canvas, necessary with HiDPI displays.
  */
-function getOutputScale(ctx) {
-  const devicePixelRatio = window.devicePixelRatio || 1;
-  const backingStoreRatio =
-    ctx.webkitBackingStorePixelRatio ||
-    ctx.mozBackingStorePixelRatio ||
-    ctx.backingStorePixelRatio ||
-    1;
-  const pixelRatio = devicePixelRatio / backingStoreRatio;
-  return {
-    sx: pixelRatio,
-    sy: pixelRatio,
-    scaled: pixelRatio !== 1,
-  };
+class OutputScale {
+  constructor() {
+    const pixelRatio = window.devicePixelRatio || 1;
+
+    /**
+     * @type {number} Horizontal scale.
+     */
+    this.sx = pixelRatio;
+
+    /**
+     * @type {number} Vertical scale.
+     */
+    this.sy = pixelRatio;
+  }
+
+  /**
+   * @type {boolean} Returns `true` when scaling is required, `false` otherwise.
+   */
+  get scaled() {
+    return this.sx !== 1 || this.sy !== 1;
+  }
 }
 
 /**
  * Scrolls specified element into view of its parent.
- * @param {Object} element - The element to be visible.
- * @param {Object} spot - An object with optional top and left properties,
+ * @param {HTMLElement} element - The element to be visible.
+ * @param {Object} [spot] - An object with optional top and left properties,
  *   specifying the offset from the top left edge.
+ * @param {number} [spot.left]
+ * @param {number} [spot.top]
  * @param {boolean} [scrollMatches] - When scrolling search results into view,
  *   ignore elements that either: Contains marked content identifiers,
  *   or have the CSS-rule `overflow: hidden;` set. The default value is `false`.
@@ -180,18 +194,32 @@ function watchScroll(viewAreaElement, callback) {
 }
 
 /**
- * Helper function to parse query string (e.g. ?param1=value&parm2=...).
+ * Helper function to parse query string (e.g. ?param1=value&param2=...).
+ * @param {string} query
+ * @returns {Map}
  */
 function parseQueryString(query) {
-  const parts = query.split("&");
-  const params = Object.create(null);
-  for (let i = 0, ii = parts.length; i < ii; ++i) {
-    const param = parts[i].split("=");
-    const key = param[0].toLowerCase();
-    const value = param.length > 1 ? param[1] : null;
-    params[decodeURIComponent(key)] = decodeURIComponent(value);
+  const params = new Map();
+  for (const [key, value] of new URLSearchParams(query)) {
+    params.set(key.toLowerCase(), value);
   }
   return params;
+}
+
+const InvisibleCharsRegExp = /[\x00-\x1F]/g;
+
+/**
+ * @param {string} str
+ * @param {boolean} [replaceInvisible]
+ */
+function removeNullCharacters(str, replaceInvisible = false) {
+  if (!InvisibleCharsRegExp.test(str)) {
+    return str;
+  }
+  if (replaceInvisible) {
+    return str.replaceAll(InvisibleCharsRegExp, m => (m === "\x00" ? "" : " "));
+  }
+  return str.replaceAll("\x00", "");
 }
 
 /**
@@ -203,8 +231,8 @@ function parseQueryString(query) {
  * @returns {number} Index of the first array element to pass the test,
  *                   or |items.length| if no such element exists.
  */
-function binarySearchFirstItem(items, condition) {
-  let minIndex = 0;
+function binarySearchFirstItem(items, condition, start = 0) {
+  let minIndex = start;
   let maxIndex = items.length - 1;
 
   if (maxIndex < 0 || !condition(items[maxIndex])) {
@@ -284,11 +312,22 @@ function roundToDivide(x, div) {
 }
 
 /**
+ * @typedef {Object} GetPageSizeInchesParameters
+ * @property {number[]} view
+ * @property {number} userUnit
+ * @property {number} rotate
+ */
+
+/**
+ * @typedef {Object} PageSize
+ * @property {number} width - In inches.
+ * @property {number} height - In inches.
+ */
+
+/**
  * Gets the size of the specified page, converted from PDF units to inches.
- * @param {Object} An Object containing the properties: {Array} `view`,
- *   {number} `userUnit`, and {number} `rotate`.
- * @returns {Object} An Object containing the properties: {number} `width`
- *   and {number} `height`, given in inches.
+ * @param {GetPageSizeInchesParameters} params
+ * @returns {PageSize}
  */
 function getPageSizeInches({ view, userUnit, rotate }) {
   const [x1, y1, x2, y2] = view;
@@ -421,7 +460,7 @@ function backtrackBeforeAllVisibleElements(index, views, top) {
  * rendering canvas. Earlier and later refer to index in `views`, not page
  * layout.)
  *
- * @param {GetVisibleElementsParameters}
+ * @param {GetVisibleElementsParameters} params
  * @returns {Object} `{ first, last, views: [{ id, x, y, view, percent }] }`
  */
 function getVisibleElements({
@@ -460,6 +499,7 @@ function getVisibleElements({
   }
 
   const visible = [],
+    ids = new Set(),
     numViews = views.length;
   let firstVisibleElementInd = binarySearchFirstItem(
     views,
@@ -545,10 +585,11 @@ function getVisibleElements({
       percent,
       widthPercent: (fractionWidth * 100) | 0,
     });
+    ids.add(view.id);
   }
 
   const first = visible[0],
-    last = visible[visible.length - 1];
+    last = visible.at(-1);
 
   if (sortByVisibility) {
     visible.sort(function (a, b) {
@@ -559,14 +600,7 @@ function getVisibleElements({
       return a.id - b.id; // ensure stability
     });
   }
-  return { first, last, views: visible };
-}
-
-/**
- * Event handler to suppress context menu.
- */
-function noContextMenuHandler(evt) {
-  evt.preventDefault();
+  return { first, last, views: visible, ids };
 }
 
 function normalizeWheelEventDirection(evt) {
@@ -580,17 +614,16 @@ function normalizeWheelEventDirection(evt) {
 }
 
 function normalizeWheelEventDelta(evt) {
+  const deltaMode = evt.deltaMode; // Avoid being affected by bug 1392460.
   let delta = normalizeWheelEventDirection(evt);
 
-  const MOUSE_DOM_DELTA_PIXEL_MODE = 0;
-  const MOUSE_DOM_DELTA_LINE_MODE = 1;
   const MOUSE_PIXELS_PER_LINE = 30;
   const MOUSE_LINES_PER_PAGE = 30;
 
   // Converts delta to per-page units
-  if (evt.deltaMode === MOUSE_DOM_DELTA_PIXEL_MODE) {
+  if (deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
     delta /= MOUSE_PIXELS_PER_LINE * MOUSE_LINES_PER_PAGE;
-  } else if (evt.deltaMode === MOUSE_DOM_DELTA_LINE_MODE) {
+  } else if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
     delta /= MOUSE_LINES_PER_PAGE;
   }
   return delta;
@@ -620,63 +653,6 @@ function isPortraitOrientation(size) {
   return size.width <= size.height;
 }
 
-const WaitOnType = {
-  EVENT: "event",
-  TIMEOUT: "timeout",
-};
-
-/**
- * @typedef {Object} WaitOnEventOrTimeoutParameters
- * @property {Object} target - The event target, can for example be:
- *   `window`, `document`, a DOM element, or an {EventBus} instance.
- * @property {string} name - The name of the event.
- * @property {number} delay - The delay, in milliseconds, after which the
- *   timeout occurs (if the event wasn't already dispatched).
- */
-
-/**
- * Allows waiting for an event or a timeout, whichever occurs first.
- * Can be used to ensure that an action always occurs, even when an event
- * arrives late or not at all.
- *
- * @param {WaitOnEventOrTimeoutParameters}
- * @returns {Promise} A promise that is resolved with a {WaitOnType} value.
- */
-function waitOnEventOrTimeout({ target, name, delay = 0 }) {
-  return new Promise(function (resolve, reject) {
-    if (
-      typeof target !== "object" ||
-      !(name && typeof name === "string") ||
-      !(Number.isInteger(delay) && delay >= 0)
-    ) {
-      throw new Error("waitOnEventOrTimeout - invalid parameters.");
-    }
-
-    function handler(type) {
-      if (target instanceof EventBus) {
-        target._off(name, eventHandler);
-      } else {
-        target.removeEventListener(name, eventHandler);
-      }
-
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-      resolve(type);
-    }
-
-    const eventHandler = handler.bind(null, WaitOnType.EVENT);
-    if (target instanceof EventBus) {
-      target._on(name, eventHandler);
-    } else {
-      target.addEventListener(name, eventHandler);
-    }
-
-    const timeoutHandler = handler.bind(null, WaitOnType.TIMEOUT);
-    const timeout = setTimeout(timeoutHandler, delay);
-  });
-}
-
 /**
  * Promise that is resolved when DOM window becomes visible.
  */
@@ -694,184 +670,47 @@ const animationStarted = new Promise(function (resolve) {
   window.requestAnimationFrame(resolve);
 });
 
-/**
- * NOTE: Only used to support various PDF viewer tests in `mozilla-central`.
- */
-function dispatchDOMEvent(eventName, args = null) {
-  if (typeof PDFJSDev !== "undefined" && !PDFJSDev.test("MOZCENTRAL")) {
-    throw new Error("Not implemented: dispatchDOMEvent");
-  }
-  const details = Object.create(null);
-  if (args?.length > 0) {
-    const obj = args[0];
-    for (const key in obj) {
-      const value = obj[key];
-      if (key === "source") {
-        if (value === window || value === document) {
-          return; // No need to re-dispatch (already) global events.
-        }
-        continue; // Ignore the `source` property.
-      }
-      details[key] = value;
-    }
-  }
-  const event = document.createEvent("CustomEvent");
-  event.initCustomEvent(eventName, true, true, details);
-  document.dispatchEvent(event);
-}
-
-/**
- * Simple event bus for an application. Listeners are attached using the `on`
- * and `off` methods. To raise an event, the `dispatch` method shall be used.
- */
-class EventBus {
-  constructor(options) {
-    this._listeners = Object.create(null);
-
-    if (typeof PDFJSDev === "undefined" || PDFJSDev.test("MOZCENTRAL")) {
-      this._isInAutomation = options?.isInAutomation === true;
-    }
-  }
-
-  /**
-   * @param {string} eventName
-   * @param {function} listener
-   * @param {Object} [options]
-   */
-  on(eventName, listener, options = null) {
-    this._on(eventName, listener, {
-      external: true,
-      once: options?.once,
-    });
-  }
-
-  /**
-   * @param {string} eventName
-   * @param {function} listener
-   * @param {Object} [options]
-   */
-  off(eventName, listener, options = null) {
-    this._off(eventName, listener, {
-      external: true,
-      once: options?.once,
-    });
-  }
-
-  dispatch(eventName) {
-    const eventListeners = this._listeners[eventName];
-    if (!eventListeners || eventListeners.length === 0) {
-      if (
-        (typeof PDFJSDev === "undefined" || PDFJSDev.test("MOZCENTRAL")) &&
-        this._isInAutomation
-      ) {
-        const args = Array.prototype.slice.call(arguments, 1);
-        dispatchDOMEvent(eventName, args);
-      }
-      return;
-    }
-    // Passing all arguments after the eventName to the listeners.
-    const args = Array.prototype.slice.call(arguments, 1);
-    let externalListeners;
-    // Making copy of the listeners array in case if it will be modified
-    // during dispatch.
-    for (const { listener, external, once } of eventListeners.slice(0)) {
-      if (once) {
-        this._off(eventName, listener);
-      }
-      if (external) {
-        (externalListeners ||= []).push(listener);
-        continue;
-      }
-      listener.apply(null, args);
-    }
-    // Dispatch any "external" listeners *after* the internal ones, to give the
-    // viewer components time to handle events and update their state first.
-    if (externalListeners) {
-      for (const listener of externalListeners) {
-        listener.apply(null, args);
-      }
-      externalListeners = null;
-    }
-    if (
-      (typeof PDFJSDev === "undefined" || PDFJSDev.test("MOZCENTRAL")) &&
-      this._isInAutomation
-    ) {
-      dispatchDOMEvent(eventName, args);
-    }
-  }
-
-  /**
-   * @ignore
-   */
-  _on(eventName, listener, options = null) {
-    const eventListeners = (this._listeners[eventName] ||= []);
-    eventListeners.push({
-      listener,
-      external: options?.external === true,
-      once: options?.once === true,
-    });
-  }
-
-  /**
-   * @ignore
-   */
-  _off(eventName, listener, options = null) {
-    const eventListeners = this._listeners[eventName];
-    if (!eventListeners) {
-      return;
-    }
-    for (let i = 0, ii = eventListeners.length; i < ii; i++) {
-      if (eventListeners[i].listener === listener) {
-        eventListeners.splice(i, 1);
-        return;
-      }
-    }
-  }
-}
+const docStyle =
+  typeof PDFJSDev !== "undefined" &&
+  PDFJSDev.test("LIB") &&
+  typeof document === "undefined"
+    ? null
+    : document.documentElement.style;
 
 function clamp(v, min, max) {
   return Math.min(Math.max(v, min), max);
 }
 
 class ProgressBar {
-  constructor(id, { height, width, units } = {}) {
-    this.visible = true;
+  #classList = null;
 
-    // Fetch the sub-elements for later.
-    this.div = document.querySelector(id + " .progress");
-    // Get the loading bar element, so it can be resized to fit the viewer.
-    this.bar = this.div.parentNode;
+  #disableAutoFetchTimeout = null;
 
-    // Get options, with sensible defaults.
-    this.height = height || 100;
-    this.width = width || 100;
-    this.units = units || "%";
+  #percent = 0;
 
-    // Initialize heights.
-    this.div.style.height = this.height + this.units;
-    this.percent = 0;
-  }
+  #style = null;
 
-  _updateBar() {
-    if (this._indeterminate) {
-      this.div.classList.add("indeterminate");
-      this.div.style.width = this.width + this.units;
-      return;
-    }
+  #visible = true;
 
-    this.div.classList.remove("indeterminate");
-    const progressSize = (this.width * this._percent) / 100;
-    this.div.style.width = progressSize + this.units;
+  constructor(bar) {
+    this.#classList = bar.classList;
+    this.#style = bar.style;
   }
 
   get percent() {
-    return this._percent;
+    return this.#percent;
   }
 
   set percent(val) {
-    this._indeterminate = isNaN(val);
-    this._percent = clamp(val, 0, 100);
-    this._updateBar();
+    this.#percent = clamp(val, 0, 100);
+
+    if (isNaN(val)) {
+      this.#classList.add("indeterminate");
+      return;
+    }
+    this.#classList.remove("indeterminate");
+
+    this.#style.setProperty("--progressBar-percent", `${this.#percent}%`);
   }
 
   setWidth(viewer) {
@@ -881,46 +720,42 @@ class ProgressBar {
     const container = viewer.parentNode;
     const scrollbarWidth = container.offsetWidth - viewer.offsetWidth;
     if (scrollbarWidth > 0) {
-      const doc = document.documentElement;
-      doc.style.setProperty(LOADINGBAR_END_OFFSET_VAR, `${scrollbarWidth}px`);
+      this.#style.setProperty(
+        "--progressBar-end-offset",
+        `${scrollbarWidth}px`
+      );
     }
+  }
+
+  setDisableAutoFetch(delay = /* ms = */ 5000) {
+    if (isNaN(this.#percent)) {
+      return;
+    }
+    if (this.#disableAutoFetchTimeout) {
+      clearTimeout(this.#disableAutoFetchTimeout);
+    }
+    this.show();
+
+    this.#disableAutoFetchTimeout = setTimeout(() => {
+      this.#disableAutoFetchTimeout = null;
+      this.hide();
+    }, delay);
   }
 
   hide() {
-    if (!this.visible) {
+    if (!this.#visible) {
       return;
     }
-    this.visible = false;
-    this.bar.classList.add("hidden");
+    this.#visible = false;
+    this.#classList.add("hidden");
   }
 
   show() {
-    if (this.visible) {
+    if (this.#visible) {
       return;
     }
-    this.visible = true;
-    this.bar.classList.remove("hidden");
-  }
-}
-
-/**
- * Moves all elements of an array that satisfy condition to the end of the
- * array, preserving the order of the rest.
- */
-function moveToEndOfArray(arr, condition) {
-  const moved = [],
-    len = arr.length;
-  let write = 0;
-  for (let read = 0; read < len; ++read) {
-    if (condition(arr[read])) {
-      moved.push(arr[read]);
-    } else {
-      arr[write] = arr[read];
-      ++write;
-    }
-  }
-  for (let read = 0; write < len; ++read, ++write) {
-    arr[write] = moved[read];
+    this.#visible = true;
+    this.#classList.remove("hidden");
   }
 }
 
@@ -948,25 +783,33 @@ function getActiveOrFocusedElement() {
 
 /**
  * Converts API PageLayout values to the format used by `BaseViewer`.
- * NOTE: This is supported to the extent that the viewer implements the
- *       necessary Scroll/Spread modes (since SinglePage, TwoPageLeft,
- *       and TwoPageRight all suggests using non-continuous scrolling).
- * @param {string} mode - The API PageLayout value.
- * @returns {number} A value from {SpreadMode}.
+ * @param {string} layout - The API PageLayout value.
+ * @returns {Object}
  */
-function apiPageLayoutToSpreadMode(layout) {
+function apiPageLayoutToViewerModes(layout) {
+  let scrollMode = ScrollMode.VERTICAL,
+    spreadMode = SpreadMode.NONE;
+
   switch (layout) {
     case "SinglePage":
+      scrollMode = ScrollMode.PAGE;
+      break;
     case "OneColumn":
-      return SpreadMode.NONE;
-    case "TwoColumnLeft":
+      break;
     case "TwoPageLeft":
-      return SpreadMode.ODD;
-    case "TwoColumnRight":
+      scrollMode = ScrollMode.PAGE;
+    /* falls through */
+    case "TwoColumnLeft":
+      spreadMode = SpreadMode.ODD;
+      break;
     case "TwoPageRight":
-      return SpreadMode.EVEN;
+      scrollMode = ScrollMode.PAGE;
+    /* falls through */
+    case "TwoColumnRight":
+      spreadMode = SpreadMode.EVEN;
+      break;
   }
-  return SpreadMode.NONE; // Default value.
+  return { scrollMode, spreadMode };
 }
 
 /**
@@ -993,20 +836,34 @@ function apiPageModeToSidebarView(mode) {
   return SidebarView.NONE; // Default value.
 }
 
+function toggleCheckedBtn(button, toggle, view = null) {
+  button.classList.toggle("toggled", toggle);
+  button.setAttribute("aria-checked", toggle);
+
+  view?.classList.toggle("hidden", !toggle);
+}
+
+function toggleExpandedBtn(button, toggle, view = null) {
+  button.classList.toggle("toggled", toggle);
+  button.setAttribute("aria-expanded", toggle);
+
+  view?.classList.toggle("hidden", !toggle);
+}
+
 export {
   animationStarted,
-  apiPageLayoutToSpreadMode,
+  apiPageLayoutToViewerModes,
   apiPageModeToSidebarView,
   approximateFraction,
   AutoPrintRegExp,
   backtrackBeforeAllVisibleElements, // only exported for testing
   binarySearchFirstItem,
-  CSS_UNITS,
+  CursorTool,
   DEFAULT_SCALE,
+  DEFAULT_SCALE_DELTA,
   DEFAULT_SCALE_VALUE,
-  EventBus,
+  docStyle,
   getActiveOrFocusedElement,
-  getOutputScale,
   getPageSizeInches,
   getVisibleElements,
   isPortraitOrientation,
@@ -1016,14 +873,14 @@ export {
   MAX_AUTO_SCALE,
   MAX_SCALE,
   MIN_SCALE,
-  moveToEndOfArray,
-  noContextMenuHandler,
   normalizeWheelEventDelta,
   normalizeWheelEventDirection,
+  OutputScale,
   parseQueryString,
   PresentationModeState,
   ProgressBar,
-  RendererType,
+  removeNullCharacters,
+  RenderingStates,
   roundToDivide,
   SCROLLBAR_PADDING,
   scrollIntoView,
@@ -1031,9 +888,9 @@ export {
   SidebarView,
   SpreadMode,
   TextLayerMode,
+  toggleCheckedBtn,
+  toggleExpandedBtn,
   UNKNOWN_SCALE,
   VERTICAL_PADDING,
-  waitOnEventOrTimeout,
-  WaitOnType,
   watchScroll,
 };

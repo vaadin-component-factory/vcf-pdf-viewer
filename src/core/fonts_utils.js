@@ -13,10 +13,10 @@
  * limitations under the License.
  */
 
-import { FontType, info } from "../shared/util.js";
 import { getEncoding, StandardEncoding } from "./encodings.js";
 import { getGlyphsUnicode } from "./glyphlist.js";
 import { getUnicodeForGlyph } from "./unicode.js";
+import { info } from "../shared/util.js";
 
 // Accented characters have issues on Windows and Linux. When this flag is
 // enabled glyphs that use seac and seac style endchar operators are truncated
@@ -78,32 +78,6 @@ const MacStandardGlyphOrdering = [
   "threequarters", "franc", "Gbreve", "gbreve", "Idotaccent", "Scedilla",
   "scedilla", "Cacute", "cacute", "Ccaron", "ccaron", "dcroat"];
 
-function getFontType(type, subtype, isStandardFont = false) {
-  switch (type) {
-    case "Type1":
-      if (isStandardFont) {
-        return FontType.TYPE1STANDARD;
-      }
-      return subtype === "Type1C" ? FontType.TYPE1C : FontType.TYPE1;
-    case "CIDFontType0":
-      return subtype === "CIDFontType0C"
-        ? FontType.CIDFONTTYPE0C
-        : FontType.CIDFONTTYPE0;
-    case "OpenType":
-      return FontType.OPENTYPE;
-    case "TrueType":
-      return FontType.TRUETYPE;
-    case "CIDFontType2":
-      return FontType.CIDFONTTYPE2;
-    case "MMType1":
-      return FontType.MMTYPE1;
-    case "Type0":
-      return FontType.TYPE0;
-    default:
-      return FontType.UNKNOWN;
-  }
-}
-
 // Some bad PDF generators, e.g. Scribus PDF, include glyph names
 // in a 'uniXXXX' format -- attempting to recover proper ones.
 function recoverGlyphName(name, glyphsUnicodeMap) {
@@ -142,11 +116,7 @@ function type1FontGlyphMapping(properties, builtInEncoding, glyphNames) {
     baseEncoding = builtInEncoding;
     for (charCode = 0; charCode < baseEncoding.length; charCode++) {
       glyphId = glyphNames.indexOf(baseEncoding[charCode]);
-      if (glyphId >= 0) {
-        charCodeToGlyphId[charCode] = glyphId;
-      } else {
-        charCodeToGlyphId[charCode] = 0; // notdef
-      }
+      charCodeToGlyphId[charCode] = glyphId >= 0 ? glyphId : /* notdef = */ 0;
     }
   } else if (properties.baseEncodingName) {
     // If a valid base encoding name was used, the mapping is initialized with
@@ -154,11 +124,7 @@ function type1FontGlyphMapping(properties, builtInEncoding, glyphNames) {
     baseEncoding = getEncoding(properties.baseEncodingName);
     for (charCode = 0; charCode < baseEncoding.length; charCode++) {
       glyphId = glyphNames.indexOf(baseEncoding[charCode]);
-      if (glyphId >= 0) {
-        charCodeToGlyphId[charCode] = glyphId;
-      } else {
-        charCodeToGlyphId[charCode] = 0; // notdef
-      }
+      charCodeToGlyphId[charCode] = glyphId >= 0 ? glyphId : /* notdef = */ 0;
     }
   } else if (isSymbolicFont) {
     // For a symbolic font the encoding should be the fonts built-in encoding.
@@ -171,11 +137,7 @@ function type1FontGlyphMapping(properties, builtInEncoding, glyphNames) {
     baseEncoding = StandardEncoding;
     for (charCode = 0; charCode < baseEncoding.length; charCode++) {
       glyphId = glyphNames.indexOf(baseEncoding[charCode]);
-      if (glyphId >= 0) {
-        charCodeToGlyphId[charCode] = glyphId;
-      } else {
-        charCodeToGlyphId[charCode] = 0; // notdef
-      }
+      charCodeToGlyphId[charCode] = glyphId >= 0 ? glyphId : /* notdef = */ 0;
     }
   }
 
@@ -196,23 +158,18 @@ function type1FontGlyphMapping(properties, builtInEncoding, glyphNames) {
           glyphId = glyphNames.indexOf(standardGlyphName);
         }
       }
-      if (glyphId >= 0) {
-        charCodeToGlyphId[charCode] = glyphId;
-      } else {
-        charCodeToGlyphId[charCode] = 0; // notdef
-      }
+      charCodeToGlyphId[charCode] = glyphId >= 0 ? glyphId : /* notdef = */ 0;
     }
   }
   return charCodeToGlyphId;
 }
 
 function normalizeFontName(name) {
-  return name.replace(/[,_]/g, "-").replace(/\s/g, "");
+  return name.replaceAll(/[,_]/g, "-").replaceAll(/\s/g, "");
 }
 
 export {
   FontFlags,
-  getFontType,
   MacStandardGlyphOrdering,
   normalizeFontName,
   recoverGlyphName,
