@@ -70,6 +70,23 @@
         </template>
       </demo-snippet>
 
+      <h3>Showing a PDF with Forms (Interactive - Default)</h3>
+      <demo-snippet id="pdf-viewer-basic-demos-forms-interactive" when-defined="vcf-pdf-viewer">
+        <template preserve-content>
+          <vcf-pdf-viewer src="pdf-files/pdf-form-example.pdf"></vcf-pdf-viewer>
+        </template>
+      </demo-snippet>
+
+      <h3>Showing a PDF with Forms (Flattened Image - Not Interactive)</h3>
+      <demo-snippet id="pdf-viewer-basic-demos-forms-flattened" when-defined="vcf-pdf-viewer">
+        <template preserve-content>
+          <vcf-pdf-viewer id="flattened-form-viewer" src="pdf-files/pdf-form-example.pdf"></vcf-pdf-viewer>
+          <script>
+            document.querySelector('#flattened-form-viewer').renderInteractiveForms = false;
+          </script>
+        </template>
+      </demo-snippet>
+
       <h3>Try to Load a File That Can't Be Found</h3>
       <demo-snippet id="pdf-viewer-error-handling-non-existing-file" when-defined="vcf-pdf-viewer">
         <template preserve-content>
