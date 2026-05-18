@@ -61,7 +61,14 @@
               });
           </script>
         </template>
-      </demo-snippet>   
+      </demo-snippet>
+
+      <h3>Showing a PDF with Links</h3>
+      <demo-snippet id="pdf-viewer-basic-demos-links" when-defined="vcf-pdf-viewer">
+        <template preserve-content>
+          <vcf-pdf-viewer src="pdf-files/links-example.pdf"></vcf-pdf-viewer>
+        </template>
+      </demo-snippet>
 
       <h3>Try to Load a File That Can't Be Found</h3>
       <demo-snippet id="pdf-viewer-error-handling-non-existing-file" when-defined="vcf-pdf-viewer">
