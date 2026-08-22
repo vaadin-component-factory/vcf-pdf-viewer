@@ -32,6 +32,10 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = "../pdfjs/dist/worker.js";
  * <vcf-pdf-viewer src="myfile.pdf"></vcf-pdf-viewer>
  * ```
  *
+ * @tagname vcf-pdf-viewer
+ * @fires {CustomEvent} currentPage-changed - Fired after the element itself updated `currentPage`.
+ * @fires {CustomEvent} document-loaded - Fired once the document behind `src` finished loading, with the pdf.js document in `detail.document`.
+ * @fires {CustomEvent} thumbnail-clicked - Fired when a sidebar thumbnail is clicked, after navigating to its page. Dispatched on the viewer, which is also passed as `detail.source`, together with `detail.pageNumber`.
  * @memberof Vaadin
  * @mixes Vaadin.ElementMixin
  * @mixes Vaadin.ThemableMixin
@@ -374,6 +378,7 @@ export class PdfViewerElement extends ResizeMixin(
     `;
   }
 
+  /** @protected */
   get slotStyles() {
     const tag = "vcf-pdf-viewer";
     const lumo = '[data-application-theme="lumo"]';
