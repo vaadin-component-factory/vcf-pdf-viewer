@@ -6,6 +6,30 @@
   "license": "Apache-2.0",
   "type": "module",
   "main": "vcf-pdf-viewer.js",
+  "module": "vcf-pdf-viewer.js",
+  "types": "vcf-pdf-viewer.d.ts",
+  "exports": {
+    ".": {
+      "types": "./vcf-pdf-viewer.d.ts",
+      "default": "./vcf-pdf-viewer.js"
+    },
+    "./vcf-pdf-viewer.js": {
+      "types": "./vcf-pdf-viewer.d.ts",
+      "default": "./vcf-pdf-viewer.js"
+    },
+    "./src/vcf-pdf-viewer.js": {
+      "types": "./src/vcf-pdf-viewer.d.ts",
+      "default": "./src/vcf-pdf-viewer.js"
+    },
+    "./theme/base/vcf-pdf-viewer.js": {
+      "types": "./theme/base/vcf-pdf-viewer.d.ts",
+      "default": "./theme/base/vcf-pdf-viewer.js"
+    },
+    "./theme/*": "./theme/*",
+    "./pdfjs/dist/*": "./pdfjs/dist/*",
+    "./custom-elements.json": "./custom-elements.json",
+    "./package.json": "./package.json"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vaadin-component-factory/vcf-pdf-viewer.git"
@@ -19,9 +43,12 @@
   ],
   "files": [
     "vcf-*.js",
+    "vcf-*.d.ts",
     "src/vcf-pdf-viewer.js",
+    "src/vcf-pdf-viewer.d.ts",
     "theme",
-    "pdfjs/dist"
+    "pdfjs/dist",
+    "custom-elements.json"
   ],
   "dependencies": {
     "@fluent/bundle": "^0.18.0",
@@ -72,14 +99,16 @@
     "rollup-plugin-copy": "^3.5.0",
     "rollup-plugin-filesize": "^10.0.0",
     "tslib": "^2.6.2",
+    "typescript": "^5.5.2 || ^6.0.0 || ^7.0.0",
     "webpack": "^5.103.0",
     "webpack-cli": "^6.0.1",
     "webpack-dev-server": "^5.2.2"
   },
   "scripts": {
-    "analyze": "cem analyze --litelement",
+    "analyze": "cem analyze",
     "test": "wtr --coverage",
-    "lint": "eslint --ext .js,.html src/vcf-pdf-viewer.js && prettier src/vcf-pdf-viewer.js --check --ignore-path .gitignore",
+    "check:types": "tsc -p tsconfig.types.json",
+    "lint": "npm run check:types && eslint --ext .js,.html src/vcf-pdf-viewer.js && prettier src/vcf-pdf-viewer.js --check --ignore-path .gitignore",
     "format": "prettier src/vcf-pdf-viewer.js --write --check --ignore-path .gitignore",
     "start": "web-dev-server --node-resolve --open demo/",
     "publish": "node publish.js",
