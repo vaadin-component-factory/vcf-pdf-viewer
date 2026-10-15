@@ -391,19 +391,23 @@ export class PdfViewerElement extends ResizeMixin(
      */
     return [
       `   
+        /* vaadin-icon 25.0 forces display with !important, so also take it out of the flow */
         ${tag}:not(${lumo}) vaadin-button.toolbar-button vaadin-icon {
           display: none;
+          position: absolute;
+          visibility: hidden;
         }
         
         ${tag}:not(${lumo}) vaadin-button.toolbar-button {
           height: var(--vaadin-icon-size, 1.5lh);
           width: var(--vaadin-icon-size, 1.5lh);
           padding: 0;
-          justify-content: flex-start;
+          justify-content: center;
           box-sizing: content-box;
         }
         
-        ${tag}:not(${lumo}) vaadin-button.toolbar-button::before {
+        /* Use ::after, as Aura uses the button ::before for its hover/active state layer */
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button::after {
           content: '';
           flex: none;
           background: var(--vaadin-input-field-button-text-color, var(--vaadin-text-color-secondary));
@@ -412,26 +416,26 @@ export class PdfViewerElement extends ResizeMixin(
           -webkit-tap-highlight-color: transparent;
           -webkit-user-select: none;
           user-select: none;
-          height: var(--vaadin-icon-size, 1.5lh);
-          width: var(--vaadin-icon-size, 1.5lh);
+          height: var(--vaadin-icon-size, 1lh);
+          width: var(--vaadin-icon-size, 1lh);
           mask-size: var(--vaadin-icon-visual-size, 100%);
           mask-position: 50%;
           mask-repeat: no-repeat;
         }
         
-        ${tag}:not(${lumo}) vaadin-button.toolbar-button#sidebarToggle::before {
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button#sidebarToggle::after {
           mask-image: var(--pdf-viewer-toggle-button-icon-closed);
         }
         
-        ${tag}:not(${lumo}) vaadin-button.toolbar-button#sidebarToggle:has(vaadin-icon.sidebarOpen)::before {
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button#sidebarToggle:has(vaadin-icon.sidebarOpen)::after {
           mask-image: var(--pdf-viewer-toggle-button-icon-open);
         }
         
-        ${tag}:not(${lumo}) vaadin-button.toolbar-button#previousPage::before {
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button#previousPage::after {
           mask-image: var(--pdf-viewer-previous-page-button-icon);
         }
         
-        ${tag}:not(${lumo}) vaadin-button.toolbar-button#nextPage::before {
+        ${tag}:not(${lumo}) vaadin-button.toolbar-button#nextPage::after {
           mask-image: var(--pdf-viewer-next-page-button-icon);
         }
         
