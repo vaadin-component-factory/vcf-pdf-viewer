@@ -21,6 +21,33 @@ import { GenericL10n } from "../pdfjs/dist/genericl10n";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "../pdfjs/dist/worker.js";
 
+const GLOBAL_STYLES_ID = 'vcf-pdf-viewer-global-styles';
+
+/**
+ * PDF.js appends elements to document.body that rely on rules from
+ * pdf_viewer.css, which is not loaded globally. Without them, the
+ * text layer measuring canvas stays inline in the page flow and adds a
+ * line below the app, making full-height layouts scroll.
+ */
+function injectGlobalStyles() {
+    if (document.getElementById(GLOBAL_STYLES_ID)) {
+        return;
+    }
+    const style = document.createElement('style');
+    style.id = GLOBAL_STYLES_ID;
+    style.textContent = `
+        .hiddenCanvasElement {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 0;
+            display: none;
+        }
+    `;
+    document.head.append(style);
+}
+
 /**
  * `<vcf-pdf-viewer>` is a Web Component for rendering PDF files without
  * the need of plugins. You can provide a pdf file to it through the src
@@ -737,6 +764,7 @@ class PdfViewerElement extends
         // Required by PDF.js annotation editor: --freetext-line-height must match
         // the LINE_FACTOR constant (1.35) defined in src/shared/util.js
         document.documentElement.style.setProperty('--freetext-line-height', '1.35');
+        injectGlobalStyles();
 
         this._addToolbarButtons();
 
